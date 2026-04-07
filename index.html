@@ -108,12 +108,15 @@ input::placeholder{color:var(--t4)}
 .custom-hint em{color:var(--pl);font-style:normal}
 .flow-btn{margin:10px 16px;background:var(--p);border-radius:var(--r);padding:14px;font-size:15px;font-weight:600;color:#fff;text-align:center;flex-shrink:0}
 .flow-btn.dim{background:var(--bg3);color:var(--t3)}
-.picker-area{flex:1;display:flex;flex-direction:column;justify-content:center;gap:16px;padding:0 20px}
-.picker-row{display:flex;align-items:center;gap:12px;background:var(--bg2);border-radius:var(--r);padding:14px 16px;border:0.5px solid var(--bd)}
-.picker-lbl{font-size:12px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;width:44px;flex-shrink:0}
-.picker-val{flex:1;text-align:center;font-size:28px;font-weight:700;letter-spacing:-.5px;color:#fff}
-.picker-btn{width:44px;height:44px;border-radius:12px;background:rgba(127,119,221,0.12);border:0.5px solid rgba(127,119,221,0.25);display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--pl);flex-shrink:0;-webkit-tap-highlight-color:transparent}
-.picker-btn:active{background:rgba(127,119,221,0.25)}
+.picker-area{flex:1;display:flex;flex-direction:column;justify-content:center;gap:14px;padding:0 20px}
+.picker-row{display:flex;flex-direction:column;gap:8px;background:var(--bg2);border-radius:var(--r);padding:14px 16px;border:0.5px solid var(--bd)}
+.picker-top{display:flex;justify-content:space-between;align-items:baseline}
+.picker-lbl{font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em}
+.picker-val{font-size:26px;font-weight:700;letter-spacing:-.5px;color:#fff}
+.picker-unit{font-size:13px;color:var(--t3);margin-left:4px}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;background:rgba(255,255,255,0.1);outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:24px;height:24px;border-radius:50%;background:var(--p);cursor:pointer;box-shadow:0 2px 8px rgba(127,119,221,0.5)}
+input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;background:var(--p);cursor:pointer;border:none}
 .sets-row{display:flex;align-items:center;justify-content:center;gap:20px;padding:8px 16px 4px;flex-shrink:0}
 .sets-btn{width:44px;height:44px;border-radius:50%;background:rgba(127,119,221,0.12);border:0.5px solid rgba(127,119,221,0.3);display:flex;align-items:center;justify-content:center;font-size:24px;color:var(--pl)}
 .sets-info{text-align:center}
@@ -273,7 +276,7 @@ input::placeholder{color:var(--t4)}
     <div class="sec-title">последние</div>
     <div class="wlist" id="workout-list"></div>
     <button class="add-btn" onclick="switchPage('new')">
-      <span style="width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:18px;line-height:1">+</span>
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" style="flex-shrink:0"><circle cx="11" cy="11" r="10" fill="rgba(255,255,255,0.2)"/><path d="M11 6v10M6 11h10" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
       Записать тренировку
     </button>
   </div>
@@ -422,9 +425,39 @@ input::placeholder{color:var(--t4)}
 <div class="toast" id="toast"></div>
 
 <script>
-const API='https://script.google.com/macros/s/AKfycbzkUYcntKRmVpLAxIEHRXaQ7qap7RgUGPQ-JLtk687W0xb0Z9YB4fTxJCe3WF-SDdhHSg/exec';
+const SUPA_URL='https://nafhjhioizwyeuwvpbtg.supabase.co';
+const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hZmhqaGlvaXp3eWV1d3ZwYnRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NDE2MDgsImV4cCI6MjA5MTExNzYwOH0.cXJLTIpx4uWLx9B_6XeG4R596MpO6cNOwmxA-MS6kkM';
 const tg=window.Telegram?.WebApp;
 tg?.ready();tg?.expand();
+
+// Supabase REST helpers
+const sbHeaders={
+  'Content-Type':'application/json',
+  'apikey':SUPA_KEY,
+  'Authorization':'Bearer '+SUPA_KEY,
+  'Prefer':'return=representation'
+};
+
+async function sbGet(table,params=''){
+  const r=await fetch(SUPA_URL+'/rest/v1/'+table+'?'+params,{headers:sbHeaders});
+  return r.json();
+}
+async function sbPost(table,body){
+  const r=await fetch(SUPA_URL+'/rest/v1/'+table,{method:'POST',headers:sbHeaders,body:JSON.stringify(body)});
+  return r.json();
+}
+async function sbPatch(table,params,body){
+  const r=await fetch(SUPA_URL+'/rest/v1/'+table+'?'+params,{method:'PATCH',headers:{...sbHeaders,'Prefer':'return=minimal'},body:JSON.stringify(body)});
+  return r.ok;
+}
+async function sbDelete(table,params){
+  const r=await fetch(SUPA_URL+'/rest/v1/'+table+'?'+params,{method:'DELETE',headers:sbHeaders});
+  return r.ok;
+}
+async function sbRpc(fn,body){
+  const r=await fetch(SUPA_URL+'/rest/v1/rpc/'+fn,{method:'POST',headers:sbHeaders,body:JSON.stringify(body)});
+  return r.json();
+}
 
 const SPRITES = {
   lv1: "https://seventeengod17.github.io/fittrack/masks/lucid-origin_pixel_art_battle_scarred_mask_sharp_horns_dark_red_glowing_magenta_eyes_energy_c-0.jpg",
@@ -490,8 +523,7 @@ let prevLvNum=1,currentLvNum=1,dailyData=null;
 const uid=()=>tg?.initDataUnsafe?.user?.id||'12345';
 const firstName=()=>tg?.initDataUnsafe?.user?.first_name||'Атлет';
 const username=()=>tg?.initDataUnsafe?.user?.username||'';
-const GET=async p=>{const u=new URL(API);Object.entries(p).forEach(([k,v])=>u.searchParams.set(k,v));return(await fetch(u)).json();};
-const POST=async(a,b)=>{const u=new URL(API);u.searchParams.set('action',a);return(await fetch(u,{method:'POST',body:JSON.stringify(b)})).json();};
+
 
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 const fmtVol=v=>!v?'0':v>=1000?(v/1000).toFixed(1)+'т':Math.round(v)+'кг';
@@ -546,21 +578,27 @@ async function loadHome(){
   document.getElementById('greeting').textContent='Привет, '+(localStorage.getItem('gc_name')||firstName())+' 👋';
   const id=uid();
   try{
-    const[s30,sAll,ws,sr,s7]=await Promise.all([
-      GET({action:'getStats',user_id:id,days:30}),
-      GET({action:'getStats',user_id:id,days:3650}),
-      GET({action:'getWorkouts',user_id:id,limit:5}),
-      GET({action:'getStreak',user_id:id}),
-      GET({action:'getStats',user_id:id,days:7}),
+    const now=new Date();
+    const d30=new Date(now-30*86400000).toISOString();
+    const d7=new Date(now-7*86400000).toISOString();
+    const[wsAll,ws,s7w]=await Promise.all([
+      sbGet('workouts','user_id=eq.'+id+'&select=id,created_at,type&order=created_at.desc'),
+      sbGet('workouts','user_id=eq.'+id+'&select=id,type,created_at,exercises(name,weight_kg,reps,sets,distance_km,duration_min)&order=created_at.desc&limit=5'),
+      sbGet('workouts','user_id=eq.'+id+'&created_at=gte.'+d7+'&select=id'),
     ]);
-    document.getElementById('stat-month').textContent=s30.total??0;
-    document.getElementById('stat-all').textContent=sAll.total??0;
-    const streak=sr.streak||0;
+    // Calculate stats from raw data
+    const s30={total:wsAll.filter(w=>new Date(w.created_at)>=new Date(d30)).length,active_days:[...new Set(wsAll.filter(w=>new Date(w.created_at)>=new Date(d30)).map(w=>new Date(w.created_at).getDay().toString()))]};
+    const sAll={total:wsAll.length};
+    const s7={total:s7w.length};
+    const sr=calcStreak(wsAll);
+    document.getElementById('stat-month').textContent=s30.total||0;
+    document.getElementById('stat-all').textContent=sAll.total||0;
+    const streak=sr;
     if(streak>0){document.getElementById('streak-pill').style.display='flex';document.getElementById('streak-num').textContent=streak+' дней';}
     renderWeekBars(s30.active_days||[]);
-    renderWList(ws||[]);
+    renderWListSupa(ws||[]);
     checkAchs({total:sAll.total||0,week:s7.total||0,month:s30.total||0,newPR:newPRSession,streak});
-    const xp=calcXP(sAll.total||0,sAll.volume_kg||0);
+    const xp=calcXPLocal(sAll.total||0);
     currentLvNum=getLv(xp).num;
     loadTicker(streak,sAll.total||0);
   }catch(e){console.error(e);}
@@ -592,20 +630,74 @@ function renderWeekBars(activeDays){
   });
 }
 
-function renderWList(ws){
+function calcStreak(workouts){
+  const days=[...new Set(workouts.map(w=>new Date(w.created_at).toISOString().split('T')[0]))].sort().reverse();
+  if(!days.length)return 0;
+  let streak=0;const today=new Date();
+  for(let i=0;i<days.length;i++){
+    const exp=new Date(today);exp.setDate(today.getDate()-i);
+    if(days[i]===exp.toISOString().split('T')[0])streak++;else break;
+  }
+  return streak;
+}
+
+function calcXPLocal(total){
+  let x=total*20;
+  getAchs().forEach(id=>{const a=ACHIEVEMENTS.find(a=>a.id===id);if(a)x+=a.xp;});
+  return x;
+}
+
+function renderWList(ws){renderWListSupa(ws);}
+function renderWListSupa(ws){
   const wrap=document.getElementById('workout-list');
   if(!ws.length){wrap.innerHTML='<div class="empty-state">Нет тренировок — время пробудиться!</div>';return;}
   wrap.innerHTML=ws.map(w=>{
-    const s=w.type==='strength';const val=s?fmtVol(w.volume):(w.distance||0).toFixed(1)+'км';const color=s?'var(--pl)':'#85B7EB';
-    return`<div class="wcard"><div class="wcard-icon">${s?'💪':'🏃'}</div><div class="wcard-main"><div class="wcard-title">${s?'Силовая':'Кардио'}</div><div class="wcard-sub">${w.exercise_names||''}</div></div><div><div class="wcard-val" style="color:${color}">${val}</div><div class="wcard-date">${fmtAgo(w.created_at)}</div></div></div>`;
+    const s=w.type==='strength';
+    const exs=w.exercises||[];
+    const vol=exs.reduce((a,e)=>a+(parseFloat(e.weight_kg)||0)*(parseInt(e.reps)||0)*(parseInt(e.sets)||0),0);
+    const dist=exs.reduce((a,e)=>a+(parseFloat(e.distance_km)||0),0);
+    const val=s?fmtVol(vol):dist.toFixed(1)+'км';
+    const color=s?'var(--pl)':'#85B7EB';
+    const names=[...new Set(exs.map(e=>e.name).filter(Boolean))].slice(0,3).join(', ');
+    return`<div class="wcard"><div class="wcard-icon">${s?'💪':'🏃'}</div><div class="wcard-main"><div class="wcard-title">${s?'Силовая':'Кардио'}</div><div class="wcard-sub">${names}</div></div><div><div class="wcard-val" style="color:${color}">${val}</div><div class="wcard-date">${fmtAgo(w.created_at)}</div></div></div>`;
   }).join('');
+}
+
+async function loadHistory(){
+  const wrap=document.getElementById('history-list');
+  if(!wrap){return;}
+  wrap.innerHTML='<div class="empty-state">Загружаем...</div>';
+  try{
+    const ws=await sbGet('workouts','user_id=eq.'+uid()+'&select=id,type,created_at,exercises(name,weight_kg,reps,sets,distance_km,duration_min)&order=created_at.desc&limit=50');
+    if(!ws.length){wrap.innerHTML='<div class="empty-state">Тренировок пока нет</div>';return;}
+    const groups={};const today=new Date();
+    ws.forEach(w=>{const d=new Date(w.created_at);const diff=Math.floor((today-d)/86400000);const lbl=diff===0?'Сегодня':diff===1?'Вчера':d.toLocaleDateString('ru',{day:'numeric',month:'long'});if(!groups[lbl])groups[lbl]=[];groups[lbl].push(w);});
+    wrap.innerHTML=Object.entries(groups).map(([date,items])=>`<div class="hist-date-lbl">${date}</div>${items.map(w=>{
+      const s=w.type==='strength';
+      const exs=w.exercises||[];
+      const vol=exs.reduce((a,e)=>a+(parseFloat(e.weight_kg)||0)*(parseInt(e.reps)||0)*(parseInt(e.sets)||0),0);
+      const dist=exs.reduce((a,e)=>a+(parseFloat(e.distance_km)||0),0);
+      const val=s?fmtVol(vol):dist.toFixed(1)+'км';const color=s?'var(--pl)':'#85B7EB';
+      const names=[...new Set(exs.map(e=>e.name).filter(Boolean))].slice(0,3).join(', ');
+      return`<div class="wcard" style="margin-bottom:8px"><div class="wcard-icon">${s?'💪':'🏃'}</div><div class="wcard-main"><div class="wcard-title">${s?'Силовая':'Кардио'}</div><div class="wcard-sub">${names}</div></div><div class="wcard-val" style="color:${color}">${val}</div></div>`;
+    }).join('')}`).join('');
+  }catch{wrap.innerHTML='<div class="empty-state">Ошибка</div>';}
 }
 
 async function loadLeaderboard(){
   const wrap=document.getElementById('lb-wrap');
   wrap.innerHTML='<div class="empty-state">Загружаем рейтинг...</div>';
   try{
-    const data=await GET({action:'getLeaderboard'});
+    // Get all users with their workout counts and volumes
+    const rawUsers=await sbGet('users','select=id,first_name,username');
+    const rawWorkouts=await sbGet('workouts','select=id,user_id');
+    const rawExs=await sbGet('exercises','select=workout_id,weight_kg,reps,sets');
+    // Build leaderboard
+    const wMap={};rawWorkouts.forEach(w=>{if(!wMap[w.user_id])wMap[w.user_id]={total:0,vol:0,wids:[]};wMap[w.user_id].total++;wMap[w.user_id].wids.push(w.id);});
+    rawExs.forEach(e=>{const uid=rawWorkouts.find(w=>w.id===e.workout_id)?.user_id;if(!uid)return;if(!wMap[uid])wMap[uid]={total:0,vol:0,wids:[]};wMap[uid].vol+=(parseFloat(e.weight_kg)||0)*(parseInt(e.reps)||0)*(parseInt(e.sets)||0);});
+    const LEVELS_LB=[{min:0,num:1,title:'Мёртвая душа'},{min:50,num:2,title:'Пробуждённый'},{min:150,num:3,title:'Проклятый охотник'},{min:350,num:4,title:'Кровавый ранг'},{min:650,num:5,title:'Демон зала'},{min:1100,num:6,title:'Владыка теней'},{min:1700,num:7,title:'Архидемон'},{min:2500,num:8,title:'Повелитель бездны'},{min:3500,num:9,title:'Монарх тьмы'},{min:5000,num:10,title:'Бог охоты'},{min:7000,num:11,title:'Разрушитель'},{min:10000,num:12,title:'Монарх-Разрушитель'}];
+    const getLvLb=xp=>{let l=LEVELS_LB[0];for(const x of LEVELS_LB)if(xp>=x.min)l=x;return l;};
+    const data=rawUsers.map(u=>{const s=wMap[u.id]||{total:0,vol:0};const xp=s.total*20+Math.floor(s.vol/500);const lv=getLvLb(xp);return{uid:u.id,name:u.first_name||'Охотник',xp,level:lv.num,title:lv.title,total:s.total};}).sort((a,b)=>b.xp-a.xp).slice(0,50).map((e,i)=>({...e,rank:i+1}));
     if(!data.length){wrap.innerHTML='<div class="empty-state">Рейтинг пуст — стань первым!</div>';return;}
     const myUid=String(uid());
     const myEntry=data.find(e=>String(e.uid)===myUid);
@@ -638,35 +730,48 @@ async function loadLeaderboard(){
 }
 
 async function loadProgress(){
-  renderWeightChart();
+  await renderWeightChart();
   const wrap=document.getElementById('pr-list');wrap.innerHTML='<div class="empty-state">Загружаем...</div>';
   try{
-    const recs=await GET({action:'getProgress',user_id:uid()});
-    if(!recs.length){wrap.innerHTML='<div class="empty-state">Запиши первую тренировку!</div>';return;}
-    wrap.innerHTML=recs.map(r=>{
-      let h=[];try{h=JSON.parse(r.history||'[]');}catch{}
-      h=h.filter(x=>x.weight).slice(-10);const max=Math.max(...h.map(x=>x.weight),0.001);
-      const bars=h.length>1?`<div class="mini-bars">${h.map((x,i)=>`<div class="mb${x.weight===max?' hi':i>h.length/2?' mid':''}" style="height:${Math.round(x.weight/max*100)}%"></div>`).join('')}</div>`:'';
-      return`<div class="pr-card"><div class="pr-head"><div class="pr-name">${r.name}</div><div class="pr-val">🏆 ${r.pr} кг</div></div>${bars}</div>`;
+    const myWorkouts=await sbGet('workouts','user_id=eq.'+uid()+'&select=id');
+    const wids=myWorkouts.map(w=>w.id);
+    if(!wids.length){wrap.innerHTML='<div class="empty-state">Запиши первую тренировку!</div>';return;}
+    const exs=await sbGet('exercises','workout_id=in.('+wids.join(',')+')'+'&select=name,weight_kg,workout_id&order=weight_kg.desc');
+    const byEx={};
+    exs.forEach(e=>{if(!e.name||!e.weight_kg)return;if(!byEx[e.name])byEx[e.name]={pr:0,history:[]};if(e.weight_kg>byEx[e.name].pr)byEx[e.name].pr=e.weight_kg;byEx[e.name].history.push(e.weight_kg);});
+    const recs=Object.entries(byEx).sort((a,b)=>b[1].pr-a[1].pr);
+    if(!recs.length){wrap.innerHTML='<div class="empty-state">Нет силовых упражнений</div>';return;}
+    wrap.innerHTML=recs.map(([name,d])=>{
+      const h=d.history.slice(-10);const max=Math.max(...h,0.001);
+      const bars=h.length>1?`<div class="mini-bars">${h.map((v,i)=>`<div class="mb${v===max?' hi':i>h.length/2?' mid':''}" style="height:${Math.round(v/max*100)}%"></div>`).join('')}</div>`:'';
+      return`<div class="pr-card"><div class="pr-head"><div class="pr-name">${name}</div><div class="pr-val">🏆 ${d.pr} кг</div></div>${bars}</div>`;
     }).join('');
-  }catch{wrap.innerHTML='<div class="empty-state">Ошибка</div>';}
+  }catch(e){console.error(e);wrap.innerHTML='<div class="empty-state">Ошибка</div>';}
 }
 
 function setPeriod(d,el){document.querySelectorAll('.prog-tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');loadProgress();}
-function getWeightData(){try{return JSON.parse(localStorage.getItem('gc_weight')||'[]');}catch{return[];}}
+function getWeightData(){return[];} // legacy, now uses Supabase
 function toggleWInput(){const r=document.getElementById('w-input-row');r.style.display=r.style.display==='none'?'block':'none';if(r.style.display==='block')document.getElementById('w-inp').focus();}
-function saveWeight(){
+async function saveWeight(){
   const v=parseFloat(document.getElementById('w-inp').value);if(!v||v<20||v>400){toast('Введи корректный вес');return;}
-  const d=getWeightData();d.push({date:new Date().toISOString(),weight:v});localStorage.setItem('gc_weight',JSON.stringify(d));
-  document.getElementById('w-inp').value='';document.getElementById('w-input-row').style.display='none';
-  renderWeightChart();toast('Вес сохранён');tg?.HapticFeedback?.notificationOccurred?.('success');
+  try{
+    await sbPost('body_weight',{user_id:uid(),weight:v});
+    document.getElementById('w-inp').value='';document.getElementById('w-input-row').style.display='none';
+    renderWeightChart();toast('Вес сохранён');tg?.HapticFeedback?.notificationOccurred?.('success');
+  }catch{toast('Ошибка сохранения');}
 }
-function renderWeightChart(){
-  const data=getWeightData().slice(-30);
+async function renderWeightChart(){
   const curEl=document.getElementById('w-cur');
   const deltaEl=document.getElementById('w-delta');
   const canvas=document.getElementById('weight-chart-canvas');
   if(!canvas)return;
+  
+  let data=[];
+  try{
+    const rawW=await sbGet('body_weight','user_id=eq.'+uid()+'&select=weight,created_at&order=created_at.asc&limit=30');
+    data=rawW.map(r=>({weight:parseFloat(r.weight),date:r.created_at}));
+  }catch(e){console.error(e);}
+
   const ctx=canvas.getContext('2d');
   const DPR=window.devicePixelRatio||1;
   const W=canvas.offsetWidth||300;
@@ -678,7 +783,7 @@ function renderWeightChart(){
   if(!data.length){
     ctx.fillStyle='rgba(255,255,255,0.2)';ctx.font='13px Helvetica Neue';ctx.textAlign='center';
     ctx.fillText('Нет данных — добавь первый вес',W/2,H/2+5);
-    curEl.textContent='— кг';deltaEl.textContent='';return;
+    if(curEl)curEl.textContent='— кг';if(deltaEl)deltaEl.textContent='';return;
   }
 
   const weights=data.map(d=>d.weight);
@@ -686,38 +791,20 @@ function renderWeightChart(){
   const range=maxW-minW||0.5;
   const pad={t:10,b:24,l:8,r:8};
   const cW=W-pad.l-pad.r,cH=H-pad.t-pad.b;
+  const px=i=>pad.l+i*(cW/(data.length-1||1));
+  const py=w=>pad.t+cH-(((w-minW)/range)*cH);
 
-  const px=(i)=>pad.l+i*(cW/(data.length-1||1));
-  const py=(w)=>pad.t+cH-(((w-minW)/range)*cH);
-
-  // Gradient fill под линией
   const grad=ctx.createLinearGradient(0,pad.t,0,H-pad.b);
-  grad.addColorStop(0,'rgba(127,119,221,0.35)');
-  grad.addColorStop(1,'rgba(127,119,221,0)');
-  ctx.beginPath();
-  ctx.moveTo(px(0),py(data[0].weight));
-  data.forEach((d,i)=>{
-    if(i===0)return;
-    // Плавная кривая через контрольные точки
-    const cpx=(px(i-1)+px(i))/2;
-    ctx.bezierCurveTo(cpx,py(data[i-1].weight),cpx,py(d.weight),px(i),py(d.weight));
-  });
-  ctx.lineTo(px(data.length-1),H-pad.b);
-  ctx.lineTo(px(0),H-pad.b);
-  ctx.closePath();
+  grad.addColorStop(0,'rgba(127,119,221,0.35)');grad.addColorStop(1,'rgba(127,119,221,0)');
+  ctx.beginPath();ctx.moveTo(px(0),py(data[0].weight));
+  data.forEach((d,i)=>{if(i===0)return;const cpx=(px(i-1)+px(i))/2;ctx.bezierCurveTo(cpx,py(data[i-1].weight),cpx,py(d.weight),px(i),py(d.weight));});
+  ctx.lineTo(px(data.length-1),H-pad.b);ctx.lineTo(px(0),H-pad.b);ctx.closePath();
   ctx.fillStyle=grad;ctx.fill();
 
-  // Линия
-  ctx.beginPath();
-  ctx.moveTo(px(0),py(data[0].weight));
-  data.forEach((d,i)=>{
-    if(i===0)return;
-    const cpx=(px(i-1)+px(i))/2;
-    ctx.bezierCurveTo(cpx,py(data[i-1].weight),cpx,py(d.weight),px(i),py(d.weight));
-  });
+  ctx.beginPath();ctx.moveTo(px(0),py(data[0].weight));
+  data.forEach((d,i)=>{if(i===0)return;const cpx=(px(i-1)+px(i))/2;ctx.bezierCurveTo(cpx,py(data[i-1].weight),cpx,py(d.weight),px(i),py(d.weight));});
   ctx.strokeStyle='#7F77DD';ctx.lineWidth=2;ctx.lineJoin='round';ctx.stroke();
 
-  // Точки
   data.forEach((d,i)=>{
     const isLast=i===data.length-1;
     ctx.beginPath();ctx.arc(px(i),py(d.weight),isLast?4:2.5,0,Math.PI*2);
@@ -725,21 +812,15 @@ function renderWeightChart(){
     if(isLast){ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.stroke();}
   });
 
-  // Даты под точками (каждые ~5 точек)
-  ctx.fillStyle='rgba(255,255,255,0.3)';ctx.font=`${9*1}px Helvetica Neue`;ctx.textAlign='center';
+  ctx.fillStyle='rgba(255,255,255,0.3)';ctx.font='9px Helvetica Neue';ctx.textAlign='center';
   data.forEach((d,i)=>{
     if(i%Math.max(1,Math.floor(data.length/5))!==0&&i!==data.length-1)return;
-    const date=new Date(d.date);
-    ctx.fillText((date.getMonth()+1)+'/'+date.getDate(),px(i),H-4);
+    const date=new Date(d.date);ctx.fillText((date.getMonth()+1)+'/'+date.getDate(),px(i),H-4);
   });
 
-  // Текущий вес и дельта
   const last=data[data.length-1];
-  curEl.textContent=last.weight+' кг';
-  if(data.length>1){
-    const diff=(last.weight-data[data.length-2].weight).toFixed(1);
-    deltaEl.innerHTML=`<span style="color:${diff>0?'#f472b6':'#5DCAA5'}">${diff>0?'+':''}${diff} кг</span>`;
-  }
+  if(curEl)curEl.textContent=last.weight+' кг';
+  if(deltaEl&&data.length>1){const diff=(last.weight-data[data.length-2].weight).toFixed(1);deltaEl.innerHTML=`<span style="color:${diff>0?'#f472b6':'#5DCAA5'}">${diff>0?'+':''}${diff} кг</span>`;}
 }
 
 async function loadProfile(){
@@ -747,9 +828,11 @@ async function loadProfile(){
   document.getElementById('p-name').textContent=n;document.getElementById('p-name-sub').textContent=n;
   const since=localStorage.getItem('gc_since');if(since)document.getElementById('p-since').textContent='с нами с '+since;
   try{
-    const[sAll,sr]=await Promise.all([GET({action:'getStats',user_id:uid(),days:3650}),GET({action:'getStreak',user_id:uid()})]);
-    const total=sAll.total||0,vol=sAll.volume_kg||0,streak=sr.streak||0;
-    const xp=calcXP(total,vol);
+    const wsAll=await sbGet('workouts','user_id=eq.'+uid()+'&select=id,created_at,exercises(weight_kg,reps,sets)');
+    const total=wsAll.length;
+    const vol=wsAll.reduce((a,w)=>a+(w.exercises||[]).reduce((b,e)=>b+(parseFloat(e.weight_kg)||0)*(parseInt(e.reps)||0)*(parseInt(e.sets)||0),0),0);
+    const streak=calcStreak(wsAll);
+    const xp=calcXP(total,Math.round(vol));
     const lv=getLv(xp);
     const nextLv=LEVELS[Math.min(lv.num,LEVELS.length-1)];
     const pct=nextLv.min>lv.min?Math.min(100,Math.round((xp-lv.min)/(nextLv.min-lv.min)*100)):100;
@@ -873,40 +956,32 @@ function goStep2(){if(!selectedEx&&searchQuery.trim())selectedEx=searchQuery.tri
 function renderStep2(wrap){
   function renderPicker(){
     const isStr=workoutType==='strength';
+    // Find weight index for slider
+    const wIdx=Math.max(0,WEIGHTS_ARR.findIndex(v=>v>=drumW));
     return`<div style="height:100%;display:flex;flex-direction:column">
       <div class="flow-header"><button class="flow-back" onclick="goBack1()">‹ назад</button><div class="flow-title">${selectedEx}</div><div class="flow-right"></div></div>
       <div class="step-bar"><div class="step-dot done"></div><div class="step-dot active"></div><div class="step-dot"></div></div>
       <div class="picker-area">
         ${isStr?`
         <div class="picker-row">
-          <div class="picker-lbl">КГ</div>
-          <button class="picker-btn" ontouchstart="_startPress(()=>adjW(-1))" ontouchend="_stopPress()" ontouchcancel="_stopPress()" onmousedown="_startPress(()=>adjW(-1))" onmouseup="_stopPress()" onmouseleave="_stopPress()">−</button>
-          <div class="picker-val" id="pv-w">${drumW}</div>
-          <button class="picker-btn" ontouchstart="_startPress(()=>adjW(1))" ontouchend="_stopPress()" ontouchcancel="_stopPress()" onmousedown="_startPress(()=>adjW(1))" onmouseup="_stopPress()" onmouseleave="_stopPress()">+</button>
+          <div class="picker-top"><div class="picker-lbl">Вес</div><div><span class="picker-val" id="pv-w">${drumW}</span><span class="picker-unit">кг</span></div></div>
+          <input type="range" id="sl-w" min="0" max="${WEIGHTS_ARR.length-1}" step="1" value="${wIdx}" oninput="onSlW(this.value)">
         </div>
         <div class="picker-row">
-          <div class="picker-lbl">ПОВТ</div>
-          <button class="picker-btn" ontouchstart="_startPress(()=>adjR(-1))" ontouchend="_stopPress()" ontouchcancel="_stopPress()" onmousedown="_startPress(()=>adjR(-1))" onmouseup="_stopPress()" onmouseleave="_stopPress()">−</button>
-          <div class="picker-val" id="pv-r">${drumR}</div>
-          <button class="picker-btn" ontouchstart="_startPress(()=>adjR(1))" ontouchend="_stopPress()" ontouchcancel="_stopPress()" onmousedown="_startPress(()=>adjR(1))" onmouseup="_stopPress()" onmouseleave="_stopPress()">+</button>
+          <div class="picker-top"><div class="picker-lbl">Повторения</div><div><span class="picker-val" id="pv-r">${drumR}</span><span class="picker-unit">повт</span></div></div>
+          <input type="range" id="sl-r" min="1" max="30" step="1" value="${drumR}" oninput="onSlR(this.value)">
         </div>
         <div class="picker-row">
-          <div class="picker-lbl">ПОДХ</div>
-          <button class="picker-btn" ontouchstart="_startPress(()=>adjS(-1))" ontouchend="_stopPress()" ontouchcancel="_stopPress()" onmousedown="_startPress(()=>adjS(-1))" onmouseup="_stopPress()" onmouseleave="_stopPress()">−</button>
-          <div class="picker-val" id="pv-s">${drumS}</div>
-          <button class="picker-btn" ontouchstart="_startPress(()=>adjS(1))" ontouchend="_stopPress()" ontouchcancel="_stopPress()" onmousedown="_startPress(()=>adjS(1))" onmouseup="_stopPress()" onmouseleave="_stopPress()">+</button>
+          <div class="picker-top"><div class="picker-lbl">Подходы</div><div><span class="picker-val" id="pv-s">${drumS}</span><span class="picker-unit">подх</span></div></div>
+          <input type="range" id="sl-s" min="1" max="10" step="1" value="${drumS}" oninput="onSlS(this.value)">
         </div>`:`
         <div class="picker-row">
-          <div class="picker-lbl">КМ</div>
-          <button class="picker-btn" onclick="adjDist(-0.5)">−</button>
-          <div class="picker-val" id="pv-dist">${drumDist}</div>
-          <button class="picker-btn" onclick="adjDist(0.5)">+</button>
+          <div class="picker-top"><div class="picker-lbl">Дистанция</div><div><span class="picker-val" id="pv-dist">${drumDist}</span><span class="picker-unit">км</span></div></div>
+          <input type="range" id="sl-dist" min="0" max="${DIST_ARR.length-1}" step="1" value="${Math.max(0,DIST_ARR.findIndex(v=>v>=drumDist))}" oninput="onSlDist(this.value)">
         </div>
         <div class="picker-row">
-          <div class="picker-lbl">МИН</div>
-          <button class="picker-btn" onclick="adjDur(-5)">−</button>
-          <div class="picker-val" id="pv-dur">${drumDur}</div>
-          <button class="picker-btn" onclick="adjDur(5)">+</button>
+          <div class="picker-top"><div class="picker-lbl">Длительность</div><div><span class="picker-val" id="pv-dur">${drumDur}</span><span class="picker-unit">мин</span></div></div>
+          <input type="range" id="sl-dur" min="5" max="120" step="5" value="${drumDur}" oninput="onSlDur(this.value)">
         </div>`}
       </div>
       <button class="flow-btn" onclick="addToDone()">Добавить в тренировку</button>
@@ -915,31 +990,12 @@ function renderStep2(wrap){
   wrap.innerHTML=renderPicker();
 }
 
-// Picker helpers с зажатием для быстрой прокрутки
-let _pressTimer=null, _pressInterval=null;
-
-function _startPress(fn){
-  fn(); // сразу срабатывает
-  _pressTimer=setTimeout(()=>{
-    _pressInterval=setInterval(()=>{fn();},80); // быстро после зажатия
-  },400);
-}
-function _stopPress(){
-  clearTimeout(_pressTimer);clearInterval(_pressInterval);
-  _pressTimer=null;_pressInterval=null;
-}
-
-function adjW(d){
-  const idx=WEIGHTS_ARR.findIndex(v=>v>=drumW);
-  const ni=Math.max(0,Math.min(WEIGHTS_ARR.length-1,(idx<0?WEIGHTS_ARR.indexOf(80):idx)+d));
-  drumW=WEIGHTS_ARR[ni];
-  const el=document.getElementById('pv-w');if(el)el.textContent=drumW;
-  tg?.HapticFeedback?.selectionChanged?.();
-}
-function adjR(d){drumR=Math.max(1,Math.min(30,drumR+d));const el=document.getElementById('pv-r');if(el)el.textContent=drumR;tg?.HapticFeedback?.selectionChanged?.();}
-function adjS(d){drumS=Math.max(1,Math.min(10,drumS+d));const el=document.getElementById('pv-s');if(el)el.textContent=drumS;tg?.HapticFeedback?.selectionChanged?.();}
-function adjDist(d){drumDist=Math.max(0.5,Math.round((drumDist+d)*2)/2);const el=document.getElementById('pv-dist');if(el)el.textContent=drumDist;tg?.HapticFeedback?.selectionChanged?.();}
-function adjDur(d){drumDur=Math.max(5,Math.min(120,drumDur+d));const el=document.getElementById('pv-dur');if(el)el.textContent=drumDur;tg?.HapticFeedback?.selectionChanged?.();}
+// Slider handlers
+function onSlW(v){drumW=WEIGHTS_ARR[parseInt(v)];const el=document.getElementById('pv-w');if(el)el.textContent=drumW;tg?.HapticFeedback?.selectionChanged?.();}
+function onSlR(v){drumR=parseInt(v);const el=document.getElementById('pv-r');if(el)el.textContent=drumR;tg?.HapticFeedback?.selectionChanged?.();}
+function onSlS(v){drumS=parseInt(v);const el=document.getElementById('pv-s');if(el)el.textContent=drumS;tg?.HapticFeedback?.selectionChanged?.();}
+function onSlDist(v){drumDist=DIST_ARR[parseInt(v)];const el=document.getElementById('pv-dist');if(el)el.textContent=drumDist;tg?.HapticFeedback?.selectionChanged?.();}
+function onSlDur(v){drumDur=parseInt(v);const el=document.getElementById('pv-dur');if(el)el.textContent=drumDur;tg?.HapticFeedback?.selectionChanged?.();}
 
 
 
@@ -970,14 +1026,26 @@ async function saveWorkout(){
   const btn=document.getElementById('save-final');if(btn){btn.className='saving-final';btn.textContent='Сохраняем...';}
   tg?.HapticFeedback?.impactOccurred?.('medium');
   try{
-    const prBefore=await GET({action:'getProgress',user_id:uid()});
-    await POST('saveWorkout',{user_id:uid(),type:workoutType,exercises:doneExercises.map(e=>e.type==='strength'?{name:e.name,weight_kg:e.weight_kg,reps:e.reps,sets:e.sets}:{name:e.name,distance_km:e.distance_km,duration_min:e.duration_min})});
-    const prAfter=await GET({action:'getProgress',user_id:uid()});
-    const prMap={};prBefore.forEach(r=>prMap[r.name]=r.pr);
-    newPRSession=prAfter.some(r=>!prMap[r.name]||r.pr>prMap[r.name]);
+    // Получаем PR до сохранения
+    const prBefore=await sbGet('exercises','workouts.user_id=eq.'+uid()+'&select=name,weight_kg&order=weight_kg.desc');
+    const prMap={};prBefore.forEach(e=>{if(!prMap[e.name]||e.weight_kg>prMap[e.name])prMap[e.name]=e.weight_kg;});
+    // Сохраняем тренировку
+    const [workout]=await sbPost('workouts',{user_id:uid(),type:workoutType});
+    if(!workout||!workout.id)throw new Error('No workout id');
+    // Сохраняем упражнения
+    const exRows=doneExercises.map(e=>e.type==='strength'
+      ?{workout_id:workout.id,name:e.name,weight_kg:e.weight_kg,reps:e.reps,sets:e.sets}
+      :{workout_id:workout.id,name:e.name,distance_km:e.distance_km,duration_min:e.duration_min});
+    await sbPost('exercises',exRows);
+    // Проверяем PR
+    newPRSession=doneExercises.some(e=>e.type==='strength'&&(!prMap[e.name]||e.weight_kg>prMap[e.name]));
     tg?.HapticFeedback?.notificationOccurred?.('success');toast('Тренировка сохранена 💪');
     setTimeout(()=>switchPage('home'),700);
-  }catch{toast('Ошибка');tg?.HapticFeedback?.notificationOccurred?.('error');const b=document.getElementById('save-final');if(b){b.className='save-final';b.textContent='Завершить тренировку';}}
+  }catch(err){
+    console.error(err);toast('Ошибка сохранения');
+    tg?.HapticFeedback?.notificationOccurred?.('error');
+    const b=document.getElementById('save-final');if(b){b.className='save-final';b.textContent='Завершить тренировку';}
+  }
 }
 
 function showTimer(){document.getElementById('timer-overlay').style.display='flex';startTimer(timerSecs);}
@@ -991,11 +1059,29 @@ function hideNameEdit(){document.getElementById('name-edit-wrap').style.display=
 function saveName(){const v=document.getElementById('name-inp').value.trim();if(!v)return;localStorage.setItem('gc_name',v);['p-name','p-name-sub'].forEach(id=>document.getElementById(id).textContent=v);document.getElementById('greeting').textContent='Привет, '+v+' 👋';hideNameEdit();toast('Имя сохранено');tg?.HapticFeedback?.notificationOccurred?.('success');}
 function showClearConfirm(){document.getElementById('clear-confirm').style.display='flex';}
 function hideClearConfirm(){document.getElementById('clear-confirm').style.display='none';}
-async function doClearHistory(){hideClearConfirm();toast('Очищаем...');try{await POST('clearHistory',{user_id:uid()});localStorage.removeItem('gc_achs');newPRSession=false;prevLvNum=1;toast('История очищена');tg?.HapticFeedback?.notificationOccurred?.('success');}catch{toast('Ошибка');}}
+async function doClearHistory(){
+  hideClearConfirm();toast('Очищаем...');
+  try{
+    // Delete exercises first, then workouts
+    const ws=await sbGet('workouts','user_id=eq.'+uid()+'&select=id');
+    if(ws.length){
+      const wids=ws.map(w=>w.id).join(',');
+      await sbDelete('exercises','workout_id=in.('+wids+')');
+      await sbDelete('workouts','user_id=eq.'+uid());
+    }
+    localStorage.removeItem('gc_achs');newPRSession=false;prevLvNum=1;
+    toast('История очищена');tg?.HapticFeedback?.notificationOccurred?.('success');
+  }catch(e){console.error(e);toast('Ошибка');}
+}
 
 async function init(){
   if(!localStorage.getItem('gc_since'))localStorage.setItem('gc_since',new Date().toLocaleDateString('ru',{month:'long',year:'numeric'}));
-  await POST('upsertUser',{user_id:uid(),username:username(),first_name:firstName()});
+  // Upsert user in Supabase
+  await fetch(SUPA_URL+'/rest/v1/users',{
+    method:'POST',
+    headers:{...sbHeaders,'Prefer':'resolution=merge-duplicates,return=minimal'},
+    body:JSON.stringify({id:uid(),username:username(),first_name:firstName()})
+  });
   loadHome();
 }
 init();
