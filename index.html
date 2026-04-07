@@ -558,6 +558,20 @@ const LEVELS=[
   {min:10000,num:12,title:'Монарх-Разрушитель',badge:'#EF9F27',bc:'rgba(239,159,39,0.3)',ring:'grad:final',   xp:'linear-gradient(90deg,#EF9F27,#f472b6,#85B7EB,#EF9F27)',sk:'lv12'},
 ];
 
+const ACH_ICONS={
+  awakening:'https://seventeengod17.github.io/fittrack/masks/achievements/1.jpg',
+  baptism:'https://seventeengod17.github.io/fittrack/masks/achievements/2.jpg',
+  price:'https://seventeengod17.github.io/fittrack/masks/achievements/3.jpg',
+  obsessed:'https://seventeengod17.github.io/fittrack/masks/achievements/4.jpg',
+  gates:'https://seventeengod17.github.io/fittrack/masks/achievements/5.jpg',
+  arc:'https://seventeengod17.github.io/fittrack/masks/achievements/6.jpg',
+  ascension:'https://seventeengod17.github.io/fittrack/masks/achievements/7.jpg',
+  technique:'https://seventeengod17.github.io/fittrack/masks/achievements/8.jpg',
+  monarch:'https://seventeengod17.github.io/fittrack/masks/achievements/9.jpg',
+  ghost:'https://seventeengod17.github.io/fittrack/masks/achievements/10.jpg',
+  silent:'https://seventeengod17.github.io/fittrack/masks/achievements/11.jpg',
+  destroyer2:'https://seventeengod17.github.io/fittrack/masks/achievements/12.jpg',
+};
 const ACHIEVEMENTS=[
   {id:'awakening', icon:'ti-flame',      color:'#7F77DD',name:'Пробуждение',        desc:'Первая тренировка',    xp:50,  hidden:false, check:s=>s.total>=1},
   {id:'baptism',   icon:'ti-barbell',    color:'#AFA9EC',name:'Крещение железом',   desc:'10 тренировок',        xp:100, hidden:false, check:s=>s.total>=10},
@@ -728,7 +742,7 @@ function renderWList(ws){renderWListSupa(ws);}
 function renderWListSupa(ws){
   const wrap=document.getElementById('workout-list');
   if(!ws.length){
-    wrap.innerHTML='<div style="margin:0 12px"><div class="wcard" style="cursor:pointer;border-color:rgba(127,119,221,0.25)" onclick="switchPage('new')"><div class="wcard-icon" style="background:rgba(127,119,221,0.15)"><i class="ti ti-plus" style="font-size:20px;color:var(--p)"></i></div><div class="wcard-main"><div class="wcard-title" style="color:var(--p)">Начать первую тренировку</div><div class="wcard-sub">Система ждёт</div></div></div></div>';
+    wrap.innerHTML=`<div style="margin:0 12px"><div class="wcard" style="cursor:pointer;border-color:rgba(127,119,221,0.25)" onclick="switchPage('new')"><div class="wcard-icon" style="background:rgba(127,119,221,0.15)"><i class="ti ti-plus" style="font-size:20px;color:var(--p)"></i></div><div class="wcard-main"><div class="wcard-title" style="color:var(--p)">Начать первую тренировку</div><div class="wcard-sub">Система ждёт</div></div></div></div>`;
     return;
   }
   // Показываем только последнюю тренировку
@@ -1004,6 +1018,8 @@ function renderAchievements(total,streak){
   const ul=getAchs();
   document.getElementById('ach-grid').innerHTML=ACHIEVEMENTS.map(a=>{
     const isUnlocked=ul.includes(a.id);
+    const customIcon=ACH_ICONS[a.id];
+
     if(a.hidden&&!isUnlocked){
       return`<div class="ach-card hidden-ach">
         <div class="ach-em"><i class="ti ti-help" style="font-size:22px;color:var(--t4)"></i></div>
@@ -1011,9 +1027,14 @@ function renderAchievements(total,streak){
         <div class="ach-req">???</div>
       </div>`;
     }
-    const iconStyle=isUnlocked?'color:'+a.color:'color:var(--t4)';
+
+    // Иконка: кастомная картинка если есть, иначе Tabler
+    const iconHtml=customIcon
+      ? `<div style="width:44px;height:44px;border-radius:12px;background:#05030d;overflow:hidden;display:flex;align-items:center;justify-content:center;margin:0 auto"><img src="${customIcon}" style="width:44px;height:44px;object-fit:contain;opacity:${isUnlocked?1:0.25}"></div>`
+      : `<i class="ti ${a.icon}" style="font-size:26px;color:${isUnlocked?a.color:'var(--t4)'}"></i>`;
+
     return`<div class="ach-card ${isUnlocked?'unlocked':'locked'}">
-      <div class="ach-em"><i class="ti ${a.icon}" style="font-size:22px;${iconStyle}"></i></div>
+      <div class="ach-em" style="display:flex;justify-content:center;margin-bottom:6px">${iconHtml}</div>
       <div class="ach-nm">${a.name}</div>
       ${isUnlocked?`<div class="ach-xp">+${a.xp} XP</div>`:`<div class="ach-req">${a.desc}</div>`}
     </div>`;
