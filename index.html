@@ -298,7 +298,7 @@ input[type=range]{touch-action:none}
   <div id="page-progress" class="page">
     <div class="sec-title">вес тела</div>
     <div class="weight-card">
-      <div class="weight-header"><div class="weight-title">Динамика веса</div><button class="weight-add" onclick="toggleWInput()">+ вес</button></div>
+      <div class="weight-header"><div class="weight-title">Динамика веса</div><div style="display:flex;gap:8px"><button class="weight-add" onclick="toggleWInput()">+ вес</button><button class="weight-add" style="color:var(--t3)" onclick="clearWeightHistory()">очист.</button></div></div>
       <canvas id="weight-chart-canvas" style="width:100%;height:80px;display:block"></canvas>
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:8px">
         <div class="w-cur" id="w-cur">— кг</div>
@@ -516,17 +516,20 @@ const ACHIEVEMENTS=[
 const PRESETS_STR=['Жим лёжа','Приседания','Становая тяга','Жим стоя','Тяга штанги в наклоне','Подтягивания','Отжимания на брусьях','Жим гантелей','Разводка гантелей','Бицепс со штангой','Трицепс на блоке','Выпады','Румынская тяга','Гиперэкстензия','Тяга верхнего блока','Жим ногами','Икры стоя','Скручивания','Планка','Берпи'];
 const PRESETS_CAR=['Бег','Велосипед','Плавание','Скакалка','Эллипс','Гребной тренажёр','HIIT','Ходьба'];
 const DAYS=['вс','пн','вт','ср','чт','пт','сб'];
-// Вес: 0.5, 1, 1.5...10, затем 10,12,14...80, затем 80,85,90...200
+function getCustomEx(){try{return JSON.parse(localStorage.getItem('gc_custom_ex')||'[]');}catch{return[];}}
+function addCustomEx(name){const list=getCustomEx();if(!list.includes(name)){list.unshift(name);if(list.length>20)list.pop();localStorage.setItem('gc_custom_ex',JSON.stringify(list));}}
+// Вес: 0.5-10 шаг 0.5, 10-100 шаг 1, 100-200 шаг 2.5
 const WEIGHTS_ARR=[
-  ...Array.from({length:20},(_,i)=>parseFloat((0.5+i*0.5).toFixed(1))), // 0.5-10 шаг 0.5
-  ...Array.from({length:36},(_,i)=>12+i*2),  // 12-82 шаг 2
-  ...Array.from({length:24},(_,i)=>85+i*5),  // 85-200 шаг 5
+  ...Array.from({length:20},(_,i)=>parseFloat((0.5+i*0.5).toFixed(1))), // 0.5-10
+  ...Array.from({length:90},(_,i)=>11+i),                               // 11-100 шаг 1
+  ...Array.from({length:40},(_,i)=>parseFloat((102.5+i*2.5).toFixed(1))),// 102.5-200 шаг 2.5
 ];
 const REPS_ARR=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,20,25,30];
 const DIST_ARR=[0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,6,7,8,9,10,12,15,20,25,30,40,50];
 const DUR_ARR=[5,10,15,20,25,30,35,40,45,50,55,60,70,80,90,100,110,120];
 
 let flowStep=1,workoutType='strength',selectedEx='',selectedExList=[],searchQuery='';
+let workoutStartTime=null,workoutTimerIv=null;
 let drumW=80,drumR=5,drumS=3,drumDist=5,drumDur=30;
 let doneExercises=[],newPRSession=false;
 let timerIv=null,timerSecs=60;
@@ -684,14 +687,24 @@ async function loadHistory(){
     if(!ws.length){wrap.innerHTML='<div class="empty-state">Тренировок пока нет</div>';return;}
     const groups={};const today=new Date();
     ws.forEach(w=>{const d=new Date(w.created_at);const diff=Math.floor((today-d)/86400000);const lbl=diff===0?'Сегодня':diff===1?'Вчера':d.toLocaleDateString('ru',{day:'numeric',month:'long'});if(!groups[lbl])groups[lbl]=[];groups[lbl].push(w);});
-    wrap.innerHTML=Object.entries(groups).map(([date,items])=>`<div class="hist-date-lbl">${date}</div>${items.map(w=>{
+    // Сохраняем тренировки для повтора
+    window._histWorkouts=ws;
+    wrap.innerHTML=Object.entries(groups).map(([date,items])=>`<div class="hist-date-lbl">${date}</div>${items.map((w,wi)=>{
       const s=w.type==='strength';
       const exs=w.exercises||[];
       const vol=exs.reduce((a,e)=>a+(parseFloat(e.weight_kg)||0)*(parseInt(e.reps)||0)*(parseInt(e.sets)||0),0);
       const dist=exs.reduce((a,e)=>a+(parseFloat(e.distance_km)||0),0);
       const val=s?fmtVol(vol):dist.toFixed(1)+'км';const color=s?'var(--pl)':'#85B7EB';
       const names=[...new Set(exs.map(e=>e.name).filter(Boolean))].slice(0,3).join(', ');
-      return`<div class="wcard" style="margin-bottom:8px"><div class="wcard-icon">${s?'💪':'🏃'}</div><div class="wcard-main"><div class="wcard-title">${s?'Силовая':'Кардио'}</div><div class="wcard-sub">${names}</div></div><div class="wcard-val" style="color:${color}">${val}</div></div>`;
+      const wIdx=ws.indexOf(w);
+      return`<div class="wcard" style="margin-bottom:8px;flex-wrap:wrap;gap:6px">
+        <div class="wcard-icon">${s?'💪':'🏃'}</div>
+        <div class="wcard-main"><div class="wcard-title">${s?'Силовая':'Кардио'}</div><div class="wcard-sub">${names}</div></div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+          <div class="wcard-val" style="color:${color}">${val}</div>
+          <button onclick="repeatWorkout(${wIdx})" style="font-size:10px;color:var(--pl);background:var(--pdim);border-radius:8px;padding:3px 8px;border:0.5px solid rgba(127,119,221,0.3)">повторить</button>
+        </div>
+      </div>`;
     }).join('')}`).join('');
   }catch{wrap.innerHTML='<div class="empty-state">Ошибка</div>';}
 }
@@ -753,17 +766,30 @@ async function loadProgress(){
     exs.forEach(e=>{if(!e.name||!e.weight_kg)return;if(!byEx[e.name])byEx[e.name]={pr:0,history:[]};if(e.weight_kg>byEx[e.name].pr)byEx[e.name].pr=e.weight_kg;byEx[e.name].history.push(e.weight_kg);});
     const recs=Object.entries(byEx).sort((a,b)=>b[1].pr-a[1].pr);
     if(!recs.length){wrap.innerHTML='<div class="empty-state">Нет силовых упражнений</div>';return;}
-    wrap.innerHTML=recs.map(([name,d])=>{
+    // Показываем топ-8, остальные скрыты под кнопкой
+    const TOP=8;
+    const renderRec=([name,d])=>{
       const h=d.history.slice(-10);const max=Math.max(...h,0.001);
       const bars=h.length>1?`<div class="mini-bars">${h.map((v,i)=>`<div class="mb${v===max?' hi':i>h.length/2?' mid':''}" style="height:${Math.round(v/max*100)}%"></div>`).join('')}</div>`:'';
       return`<div class="pr-card"><div class="pr-head"><div class="pr-name">${name}</div><div class="pr-val">🏆 ${d.pr} кг</div></div>${bars}</div>`;
-    }).join('');
+    };
+    const visible=recs.slice(0,TOP);
+    const hidden=recs.slice(TOP);
+    wrap.innerHTML=visible.map(renderRec).join('')+
+      (hidden.length?`<div id="pr-more-btn" style="text-align:center;padding:10px 0"><button onclick="document.getElementById('pr-more').style.display='block';document.getElementById('pr-more-btn').style.display='none'" style="color:var(--pl);font-size:13px;background:var(--bg2);border-radius:10px;padding:8px 16px;border:0.5px solid var(--bd)">Ещё ${hidden.length} упражнений ↓</button></div><div id="pr-more" style="display:none">${hidden.map(renderRec).join('')}</div>`:'');
   }catch(e){console.error(e);wrap.innerHTML='<div class="empty-state">Ошибка</div>';}
 }
 
 function setPeriod(d,el){document.querySelectorAll('.prog-tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');loadProgress();}
 function getWeightData(){return[];} // legacy, now uses Supabase
 function toggleWInput(){const r=document.getElementById('w-input-row');r.style.display=r.style.display==='none'?'block':'none';if(r.style.display==='block')document.getElementById('w-inp').focus();}
+async function clearWeightHistory(){
+  if(!confirm('Очистить историю веса?'))return;
+  try{
+    await sbDelete('body_weight','user_id=eq.'+uid());
+    renderWeightChart();toast('История веса очищена');
+  }catch{toast('Ошибка');}
+}
 async function saveWeight(){
   const v=parseFloat(document.getElementById('w-inp').value);if(!v||v<20||v>400){toast('Введи корректный вес');return;}
   try{
@@ -848,7 +874,10 @@ async function loadProfile(){
     const lv=getLv(xp);
     const nextLv=LEVELS[Math.min(lv.num,LEVELS.length-1)];
     const pct=nextLv.min>lv.min?Math.min(100,Math.round((xp-lv.min)/(nextLv.min-lv.min)*100)):100;
-    if(lv.num>prevLvNum&&prevLvNum>0)setTimeout(()=>showLvUp(lv),500);
+    // Показываем level up только если уровень вырос и prevLvNum уже был загружен (не первый заход)
+const storedLv=parseInt(localStorage.getItem('gc_lv')||'0');
+if(storedLv>0&&lv.num>storedLv)setTimeout(()=>showLvUp(lv),500);
+localStorage.setItem('gc_lv',lv.num);
     prevLvNum=lv.num;currentLvNum=lv.num;
     document.getElementById('lv-num').textContent='Ур. '+lv.num;
     document.getElementById('lv-title').textContent=lv.title;
@@ -926,9 +955,12 @@ function renderStep1(wrap){
   inp.addEventListener('input',function(){searchQuery=this.value;updateExList();});
   inp.addEventListener('keydown',e=>{
     if(e.key==='Enter'&&searchQuery.trim()){
-      const allP=[...PRESETS_STR,...PRESETS_CAR];
       const name=searchQuery.trim();
-      if(!selectedExList.includes(name)){selectedExList.push(name);tg?.HapticFeedback?.selectionChanged?.();}
+      if(!selectedExList.includes(name)){
+        selectedExList.push(name);
+        addCustomEx(name); // сохраняем кастомное упражнение
+        tg?.HapticFeedback?.selectionChanged?.();
+      }
       searchQuery='';inp.value='';updateExList();
     }
   });
@@ -950,10 +982,16 @@ function renderStep1(wrap){
 }
 
 function renderExOpts(filtered,showCustom){
-  return filtered.map(p=>{
+  // Добавляем кастомные упражнения в начало если нет поиска
+  const customs=getCustomEx();
+  const q=searchQuery.toLowerCase();
+  const filteredCustoms=q?customs.filter(c=>c.toLowerCase().includes(q)&&!filtered.includes(c)):customs.filter(c=>!filtered.includes(c));
+  const all=[...filteredCustoms,...filtered];
+  return all.map(p=>{
     const sel=selectedExList.includes(p);
+    const isCustom=customs.includes(p)&&![...PRESETS_STR,...PRESETS_CAR].includes(p);
     return`<div class="ex-option ${sel?'sel':''}" data-name="${p.replace(/"/g,'&quot;')}">
-      <span>${p}</span>
+      <span>${p}${isCustom?'<span style="font-size:10px;color:var(--t4);margin-left:4px">своё</span>':''}</span>
       <div class="ex-check">${sel?'✓':''}</div>
     </div>`;
   }).join('')+(showCustom?`<div class="custom-hint">Нажми <em>Enter</em> чтобы добавить <em>"${searchQuery}"</em></div>`:'');
@@ -1057,24 +1095,104 @@ function addToDone(){
 }
 
 function renderStep3(wrap){
+  if(!workoutStartTime)workoutStartTime=Date.now();
+  function fmtDur(ms){const m=Math.floor(ms/60000);const s=Math.floor((ms%60000)/1000);return m+'м '+String(s).padStart(2,'0')+'с';}
   wrap.innerHTML=`<div style="height:100%;display:flex;flex-direction:column">
-    <div class="flow-header"><button class="flow-back" onclick="goBack2()">‹</button><div class="flow-title">Тренировка</div><button class="flow-right" onclick="showTimer()" style="font-size:20px;color:var(--t3)">⏱</button></div>
+    <div class="flow-header">
+      <button class="flow-back" onclick="goBack2()">‹</button>
+      <div class="flow-title">Тренировка</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div id="workout-dur" style="font-size:12px;color:var(--t3)">0м 00с</div>
+        <button onclick="showTimer()" style="font-size:20px;color:var(--t3)">⏱</button>
+      </div>
+    </div>
     <div class="step-bar"><div class="step-dot done"></div><div class="step-dot done"></div><div class="step-dot active"></div></div>
-    <div class="done-list">${doneExercises.map((e,i)=>`<div class="done-card"><div><div class="done-name">${e.name}</div><div class="done-detail">${e.type==='strength'?`${e.weight_kg}кг × ${e.reps} × ${e.sets}п`:`${e.distance_km}км · ${e.duration_min}мин`}</div></div><button class="done-del" onclick="delDone(${i})">удалить</button></div>`).join('')}</div>
+    <div class="done-list" id="done-list-wrap">
+      ${doneExercises.map((e,i)=>`<div class="done-card">
+        <div style="flex:1;min-width:0">
+          <div class="done-name">${e.name}</div>
+          <div class="done-detail" id="done-detail-${i}">${e.type==='strength'?`${e.weight_kg}кг × ${e.reps} × ${e.sets}п`:`${e.distance_km}км · ${e.duration_min}мин`}</div>
+          <div id="done-edit-${i}" style="display:none;margin-top:8px;display:none">
+            ${e.type==='strength'?`
+            <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px">
+              <span style="font-size:11px;color:var(--t3);width:36px">Вес</span>
+              <input type="number" inputmode="decimal" value="${e.weight_kg}" style="flex:1;background:var(--bg3);border:0.5px solid var(--bd);border-radius:8px;padding:6px 10px;font-size:14px;color:#fff;outline:none" onchange="editEx(${i},'weight_kg',parseFloat(this.value)||0)">
+              <span style="font-size:12px;color:var(--t3)">кг</span>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px">
+              <span style="font-size:11px;color:var(--t3);width:36px">Повт</span>
+              <input type="number" inputmode="numeric" value="${e.reps}" style="flex:1;background:var(--bg3);border:0.5px solid var(--bd);border-radius:8px;padding:6px 10px;font-size:14px;color:#fff;outline:none" onchange="editEx(${i},'reps',parseInt(this.value)||0)">
+            </div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <span style="font-size:11px;color:var(--t3);width:36px">Подх</span>
+              <input type="number" inputmode="numeric" value="${e.sets}" style="flex:1;background:var(--bg3);border:0.5px solid var(--bd);border-radius:8px;padding:6px 10px;font-size:14px;color:#fff;outline:none" onchange="editEx(${i},'sets',parseInt(this.value)||0)">
+            </div>`:`
+            <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px">
+              <span style="font-size:11px;color:var(--t3);width:36px">Км</span>
+              <input type="number" inputmode="decimal" value="${e.distance_km}" style="flex:1;background:var(--bg3);border:0.5px solid var(--bd);border-radius:8px;padding:6px 10px;font-size:14px;color:#fff;outline:none" onchange="editEx(${i},'distance_km',parseFloat(this.value)||0)">
+            </div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <span style="font-size:11px;color:var(--t3);width:36px">Мин</span>
+              <input type="number" inputmode="numeric" value="${e.duration_min}" style="flex:1;background:var(--bg3);border:0.5px solid var(--bd);border-radius:8px;padding:6px 10px;font-size:14px;color:#fff;outline:none" onchange="editEx(${i},'duration_min',parseInt(this.value)||0)">
+            </div>`}
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0;margin-left:8px">
+          <button onclick="toggleEditDone(${i})" style="font-size:11px;color:var(--pl);padding:4px 8px;background:var(--pdim);border-radius:8px">✏️</button>
+          <button class="done-del" onclick="delDone(${i})">✕</button>
+        </div>
+      </div>`).join('')}
+    </div>
     <button class="add-more" onclick="addMore()">+ ещё упражнение</button>
     <button class="save-final" id="save-final" onclick="saveWorkout()">Завершить тренировку</button>
   </div>`;
+  // Таймер длительности тренировки
+  if(workoutTimerIv)clearInterval(workoutTimerIv);
+  workoutTimerIv=setInterval(()=>{
+    const el=document.getElementById('workout-dur');
+    if(el)el.textContent=fmtDur(Date.now()-workoutStartTime);
+  },1000);
+}
+
+function toggleEditDone(i){
+  const el=document.getElementById('done-edit-'+i);
+  if(!el)return;
+  el.style.display=el.style.display==='none'?'block':'none';
+}
+function editEx(i,field,val){
+  if(!doneExercises[i])return;
+  doneExercises[i][field]=val;
+  const det=document.getElementById('done-detail-'+i);
+  const e=doneExercises[i];
+  if(det)det.textContent=e.type==='strength'?`${e.weight_kg}кг × ${e.reps} × ${e.sets}п`:`${e.distance_km}км · ${e.duration_min}мин`;
 }
 
 function goBack2(){flowStep=1;selectedEx='';searchQuery='';renderFlow();}
+function repeatWorkout(idx){
+  const ws=window._histWorkouts||[];
+  const w=ws[idx];if(!w)return;
+  // Заполняем doneExercises данными из прошлой тренировки
+  workoutType=w.type;
+  selectedExList=(w.exercises||[]).map(e=>e.name).filter(Boolean);
+  doneExercises=(w.exercises||[]).map(e=>({...e,type:w.type}));
+  workoutStartTime=Date.now();
+  flowStep=3;switchPage('new');renderFlow();
+  toast('Тренировка загружена — можешь редактировать');
+}
 function delDone(i){doneExercises.splice(i,1);if(!doneExercises.length)flowStep=1;renderFlow();}
 function addMore(){flowStep=1;selectedEx='';searchQuery='';renderFlow();}
 
 async function saveWorkout(){
+  if(workoutTimerIv){clearInterval(workoutTimerIv);workoutTimerIv=null;}
   if(!doneExercises.length){toast('Добавь упражнение');return;}
   const btn=document.getElementById('save-final');if(btn){btn.className='saving-final';btn.textContent='Сохраняем...';}
   tg?.HapticFeedback?.impactOccurred?.('medium');
   try{
+    // Сохраняем кастомные упражнения
+    doneExercises.forEach(e=>{
+      const allP=[...PRESETS_STR,...PRESETS_CAR];
+      if(!allP.includes(e.name))addCustomEx(e.name);
+    });
     // Сохраняем тренировку
     const [workout]=await sbPost('workouts',{user_id:uid(),type:workoutType});
     if(!workout||!workout.id)throw new Error('No workout id: '+JSON.stringify(workout));
@@ -1104,7 +1222,18 @@ function showTimer(){document.getElementById('timer-overlay').style.display='fle
 function hideTimer(){document.getElementById('timer-overlay').style.display='none';if(timerIv){clearInterval(timerIv);timerIv=null;}}
 function stopTimer(){if(timerIv){clearInterval(timerIv);timerIv=null;}document.getElementById('timer-cnt').textContent=timerSecs;document.getElementById('timer-sub').textContent='нажми чтобы начать';}
 function setTimer(s,el){timerSecs=s;document.querySelectorAll('.tp').forEach(b=>b.classList.remove('active'));el.classList.add('active');stopTimer();startTimer(s);}
-function startTimer(s){if(timerIv)clearInterval(timerIv);let r=s;document.getElementById('timer-cnt').textContent=r;document.getElementById('timer-sub').textContent='осталось секунд';timerIv=setInterval(()=>{r--;document.getElementById('timer-cnt').textContent=r;if(r<=0){clearInterval(timerIv);timerIv=null;document.getElementById('timer-sub').textContent='время вышло!';tg?.HapticFeedback?.notificationOccurred?.('success');setTimeout(hideTimer,1500);}},1000);}
+function startTimer(s){
+  if(timerIv)clearInterval(timerIv);
+  const endAt=Date.now()+s*1000;
+  function tick(){
+    const r=Math.max(0,Math.ceil((endAt-Date.now())/1000));
+    const el=document.getElementById('timer-cnt');if(el)el.textContent=r;
+    if(r<=0){clearInterval(timerIv);timerIv=null;const sub=document.getElementById('timer-sub');if(sub)sub.textContent='время вышло!';tg?.HapticFeedback?.notificationOccurred?.('success');setTimeout(hideTimer,1500);}
+  }
+  tick();
+  timerIv=setInterval(tick,500); // 500ms для точности после фона
+  const sub=document.getElementById('timer-sub');if(sub)sub.textContent='осталось секунд';
+}
 
 function showNameEdit(){document.getElementById('name-edit-wrap').style.display='block';const i=document.getElementById('name-inp');i.value=localStorage.getItem('gc_name')||firstName();i.focus();}
 function hideNameEdit(){document.getElementById('name-edit-wrap').style.display='none';}
