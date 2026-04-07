@@ -176,17 +176,18 @@ input[type=range]{touch-action:none}
 /* PROFILE */
 .profile-wrap{padding:20px 16px}
 /* Аватарка — показываем голову без обрезки */
-.mask-avatar-wrap{position:relative;width:80px;height:80px;flex-shrink:0}
+.mask-avatar-wrap{position:relative;width:80px;height:96px;flex-shrink:0;overflow:hidden;border-radius:20px}
 .mask-avatar-img{
-  width:80px;height:80px;
+  width:80px;height:96px;
   border-radius:20px;
-  object-fit:contain;
+  object-fit:cover;
+  object-position:center 8%;
   background:#0a0810;
   display:block;
   animation:maskFloat 3s ease-in-out infinite;
 }
 .mask-avatar-ph{width:80px;height:80px;border-radius:20px;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:36px;animation:maskFloat 3s ease-in-out infinite}
-.mask-ring{position:absolute;inset:-3px;border-radius:23px;pointer-events:none;z-index:2}
+.mask-ring{position:absolute;inset:-3px;border-radius:23px;pointer-events:none;z-index:2;bottom:-3px}
 @keyframes maskFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
 @keyframes ringPulse{0%,100%{opacity:1}50%{opacity:0.55}}
 @keyframes unlockPop{0%{transform:scale(0.5);opacity:0}60%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
@@ -525,7 +526,7 @@ const REPS_ARR=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,20,25,30];
 const DIST_ARR=[0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,6,7,8,9,10,12,15,20,25,30,40,50];
 const DUR_ARR=[5,10,15,20,25,30,35,40,45,50,55,60,70,80,90,100,110,120];
 
-let flowStep=1,workoutType='strength',selectedEx='',searchQuery='';
+let flowStep=1,workoutType='strength',selectedEx='',selectedExList=[],searchQuery='';
 let drumW=80,drumR=5,drumS=3,drumDist=5,drumDur=30;
 let doneExercises=[],newPRSession=false;
 let timerIv=null,timerSecs=60;
@@ -901,7 +902,7 @@ function renderAchievements(total,streak){
 }
 
 // ── FLOW ─────────────────────────────────────────────────────────────────────
-function initFlow(){flowStep=1;selectedEx='';searchQuery='';doneExercises=[];workoutType='strength';drumW=80;drumR=5;drumS=3;drumDist=5;drumDur=30;renderFlow();}
+function initFlow(){flowStep=1;selectedEx='';selectedExList=[];searchQuery='';doneExercises=[];workoutType='strength';drumW=80;drumR=5;drumS=3;drumDist=5;drumDur=30;renderFlow();}
 function renderFlow(){const w=document.getElementById('flow-wrap');if(flowStep===1)renderStep1(w);else if(flowStep===2)renderStep2(w);else renderStep3(w);}
 
 function renderStep1(wrap){
@@ -909,8 +910,9 @@ function renderStep1(wrap){
   const q=searchQuery.toLowerCase();
   const filtered=q?presets.filter(p=>p.toLowerCase().includes(q)):presets;
   const showCustom=q&&!presets.some(p=>p.toLowerCase()===q);
+  const selCount=selectedExList.length;
   wrap.innerHTML=`<div style="height:100%;display:flex;flex-direction:column">
-    <div class="flow-header"><button class="flow-back" onclick="switchPage('home')">✕</button><div class="flow-title">Упражнение</div><div class="flow-right"></div></div>
+    <div class="flow-header"><button class="flow-back" onclick="switchPage('home')">✕</button><div class="flow-title">Упражнения</div><div class="flow-right" style="font-size:12px;color:var(--pl)">${selCount>0?selCount+' выбр':''}</div></div>
     <div class="step-bar"><div class="step-dot active"></div><div class="step-dot"></div><div class="step-dot"></div></div>
     <div class="type-row">
       <div class="type-pill ${workoutType==='strength'?'sel':''}" onclick="setFType('strength')">💪 Силовая</div>
@@ -918,51 +920,73 @@ function renderStep1(wrap){
     </div>
     <div class="search-wrap"><input id="ex-search" class="search-inp" placeholder="Поиск или своё название..." autocomplete="off" autocorrect="off" spellcheck="false"></div>
     <div class="ex-list-scroll" id="ex-scroll">${renderExOpts(filtered,showCustom)}</div>
-    <button class="flow-btn ${!selectedEx&&!searchQuery?'dim':''}" id="step1-btn" onclick="goStep2()">Далее →</button>
+    <button class="flow-btn ${selCount===0?'dim':''}" id="step1-btn" onclick="goStep2()">${selCount>0?'Далее ('+selCount+') →':'Выбери упражнения'}</button>
   </div>`;
   const inp=document.getElementById('ex-search');inp.value=searchQuery;
-  inp.addEventListener('input',function(){
-    searchQuery=this.value;
-    // Если выбранное не входит в пресеты — сбрасываем
-    const allPresets=[...PRESETS_STR,...PRESETS_CAR];
-    if(selectedEx&&!allPresets.includes(selectedEx))selectedEx='';
-    updateExList();
+  inp.addEventListener('input',function(){searchQuery=this.value;updateExList();});
+  inp.addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&searchQuery.trim()){
+      const allP=[...PRESETS_STR,...PRESETS_CAR];
+      const name=searchQuery.trim();
+      if(!selectedExList.includes(name)){selectedExList.push(name);tg?.HapticFeedback?.selectionChanged?.();}
+      searchQuery='';inp.value='';updateExList();
+    }
   });
-  inp.addEventListener('keydown',e=>{if(e.key==='Enter'&&searchQuery.trim())goStep2();});
-  // Делегируем клики на список — надёжнее inline onclick
+  // Event delegation для тогглинга галочек
   const scroll=document.getElementById('ex-scroll');
   if(scroll){
     scroll.addEventListener('click',function(e){
       const opt=e.target.closest('.ex-option');
       if(!opt)return;
       const name=opt.dataset.name;
-      if(name){
-        selectedEx=name;
-        searchQuery=name;
-        inp.value=name;
-        updateExList();
-        const btn=document.getElementById('step1-btn');
-        if(btn)btn.className='flow-btn';
-        tg?.HapticFeedback?.selectionChanged?.();
-      }
+      if(!name)return;
+      const idx=selectedExList.indexOf(name);
+      if(idx>-1){selectedExList.splice(idx,1);}
+      else{selectedExList.push(name);}
+      tg?.HapticFeedback?.selectionChanged?.();
+      updateExList();
     });
   }
 }
-function renderExOpts(filtered,showCustom){return filtered.map(p=>`<div class="ex-option ${selectedEx===p?'sel':''}" data-name="${p.replace(/"/g,'&quot;')}"><span>${p}</span><div class="ex-check">${selectedEx===p?'✓':''}</div></div>`).join('')+(showCustom?`<div class="custom-hint">Нажми <em>Далее</em> чтобы добавить <em>"${searchQuery}"</em></div>`:'');}
-function updateExList(){const presets=workoutType==='strength'?PRESETS_STR:PRESETS_CAR;const q=searchQuery.toLowerCase();const filtered=q?presets.filter(p=>p.toLowerCase().includes(q)):presets;const showCustom=q&&!presets.some(p=>p.toLowerCase()===q);const s=document.getElementById('ex-scroll');if(s)s.innerHTML=renderExOpts(filtered,showCustom);const btn=document.getElementById('step1-btn');if(btn)btn.className='flow-btn'+((!selectedEx&&!searchQuery)?' dim':'');}
-function pickEx(name){
-  selectedEx=name;
-  searchQuery=name;
-  // Обновляем поле поиска без потери фокуса
-  const inp=document.getElementById('ex-search');
-  if(inp&&document.activeElement!==inp){inp.value=name;}
-  updateExList();
-  const btn=document.getElementById('step1-btn');
-  if(btn)btn.className='flow-btn';
-  tg?.HapticFeedback?.selectionChanged?.();
+
+function renderExOpts(filtered,showCustom){
+  return filtered.map(p=>{
+    const sel=selectedExList.includes(p);
+    return`<div class="ex-option ${sel?'sel':''}" data-name="${p.replace(/"/g,'&quot;')}">
+      <span>${p}</span>
+      <div class="ex-check">${sel?'✓':''}</div>
+    </div>`;
+  }).join('')+(showCustom?`<div class="custom-hint">Нажми <em>Enter</em> чтобы добавить <em>"${searchQuery}"</em></div>`:'');
 }
-function setFType(t){workoutType=t;selectedEx='';renderFlow();setTimeout(()=>{const i=document.getElementById('ex-search');if(i){i.value=searchQuery;i.focus();}},30);}
-function goStep2(){if(!selectedEx&&searchQuery.trim())selectedEx=searchQuery.trim();if(!selectedEx){toast('Выбери или введи упражнение');return;}flowStep=2;renderFlow();}
+
+function updateExList(){
+  const presets=workoutType==='strength'?PRESETS_STR:PRESETS_CAR;
+  const q=searchQuery.toLowerCase();
+  const filtered=q?presets.filter(p=>p.toLowerCase().includes(q)):presets;
+  const showCustom=q&&!presets.some(p=>p.toLowerCase()===q);
+  const s=document.getElementById('ex-scroll');if(s)s.innerHTML=renderExOpts(filtered,showCustom);
+  const btn=document.getElementById('step1-btn');
+  const selCount=selectedExList.length;
+  if(btn){
+    btn.className='flow-btn'+(selCount===0?' dim':'');
+    btn.textContent=selCount>0?'Далее ('+selCount+') →':'Выбери упражнения';
+  }
+  // Обновляем счётчик в хедере
+  const right=document.querySelector('.flow-right');
+  if(right)right.textContent=selCount>0?selCount+' выбр':'';
+}
+
+function setFType(t){workoutType=t;selectedExList=[];searchQuery='';renderFlow();}
+
+function goStep2(){
+  if(selectedExList.length===0){
+    if(searchQuery.trim()){selectedExList.push(searchQuery.trim());}
+    else{toast('Выбери хотя бы одно упражнение');return;}
+  }
+  // Для мультивыбора: берём первое упражнение, остальные добавим после
+  selectedEx=selectedExList[0];
+  flowStep=2;renderFlow();
+}
 
 function renderStep2(wrap){
   function renderPicker(){
@@ -970,7 +994,7 @@ function renderStep2(wrap){
     // Find weight index for slider
     const wIdx=Math.max(0,WEIGHTS_ARR.findIndex(v=>v>=drumW));
     return`<div style="height:100%;display:flex;flex-direction:column">
-      <div class="flow-header"><button class="flow-back" onclick="goBack1()">‹ назад</button><div class="flow-title">${selectedEx}</div><div class="flow-right"></div></div>
+      <div class="flow-header"><button class="flow-back" onclick="goBack1()">‹ назад</button><div class="flow-title" style="font-size:15px">${selectedEx}<span style="color:var(--t3);font-size:12px;font-weight:400;margin-left:6px">${doneExercises.length+1}/${selectedExList.length}</span></div><div class="flow-right"></div></div>
       <div class="step-bar"><div class="step-dot done"></div><div class="step-dot active"></div><div class="step-dot"></div></div>
       <div class="picker-area">
         ${isStr?`
@@ -1011,11 +1035,25 @@ function onSlDur(v){drumDur=parseInt(v);const el=document.getElementById('pv-dur
 
 
 
-function goBack1(){flowStep=1;renderFlow();}
+function goBack1(){
+  // Если есть ещё упражнения в очереди — не сбрасываем список
+  flowStep=1;renderFlow();
+}
 function addToDone(){
   if(workoutType==='strength')doneExercises.push({name:selectedEx,weight_kg:drumW,reps:drumR,sets:drumS,type:'strength'});
   else doneExercises.push({name:selectedEx,distance_km:drumDist,duration_min:drumDur,type:'cardio'});
-  tg?.HapticFeedback?.impactOccurred?.('light');flowStep=3;renderFlow();
+  tg?.HapticFeedback?.impactOccurred?.('light');
+  // Если есть ещё невыбранные упражнения из мультивыбора — идём к следующему
+  const doneNames=doneExercises.map(e=>e.name);
+  const nextEx=selectedExList.find(n=>!doneNames.includes(n));
+  if(nextEx){
+    selectedEx=nextEx;
+    // Сброс параметров для нового упражнения
+    drumW=80;drumR=10;drumS=3;
+    renderFlow(); // остаёмся на step2
+  } else {
+    flowStep=3;renderFlow();
+  }
 }
 
 function renderStep3(wrap){
