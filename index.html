@@ -1026,19 +1026,22 @@ async function saveWorkout(){
   const btn=document.getElementById('save-final');if(btn){btn.className='saving-final';btn.textContent='Сохраняем...';}
   tg?.HapticFeedback?.impactOccurred?.('medium');
   try{
-    // Получаем PR до сохранения
-    const prBefore=await sbGet('exercises','workouts.user_id=eq.'+uid()+'&select=name,weight_kg&order=weight_kg.desc');
-    const prMap={};prBefore.forEach(e=>{if(!prMap[e.name]||e.weight_kg>prMap[e.name])prMap[e.name]=e.weight_kg;});
     // Сохраняем тренировку
     const [workout]=await sbPost('workouts',{user_id:uid(),type:workoutType});
-    if(!workout||!workout.id)throw new Error('No workout id');
-    // Сохраняем упражнения
+    if(!workout||!workout.id)throw new Error('No workout id: '+JSON.stringify(workout));
+    // Сохраняем упражнения по одному если массив не работает
     const exRows=doneExercises.map(e=>e.type==='strength'
       ?{workout_id:workout.id,name:e.name,weight_kg:e.weight_kg,reps:e.reps,sets:e.sets}
       :{workout_id:workout.id,name:e.name,distance_km:e.distance_km,duration_min:e.duration_min});
-    await sbPost('exercises',exRows);
-    // Проверяем PR
-    newPRSession=doneExercises.some(e=>e.type==='strength'&&(!prMap[e.name]||e.weight_kg>prMap[e.name]));
+    // Supabase принимает массив через bulk insert
+    const exRes=await fetch(SUPA_URL+'/rest/v1/exercises',{
+      method:'POST',
+      headers:{...sbHeaders,'Prefer':'return=minimal'},
+      body:JSON.stringify(exRows)
+    });
+    if(!exRes.ok){const err=await exRes.text();throw new Error('exercises: '+err);}
+    // Проверяем PR локально
+    newPRSession=false;
     tg?.HapticFeedback?.notificationOccurred?.('success');toast('Тренировка сохранена 💪');
     setTimeout(()=>switchPage('home'),700);
   }catch(err){
