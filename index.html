@@ -492,18 +492,6 @@ input[type=range]{touch-action:none}
 <div class="toast" id="toast"></div>
 
 <script>
-
-function switchPage(page) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  const el = document.getElementById('page-' + page);
-  if (el) el.classList.add('active');
-
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  const nav = document.getElementById('nav-' + page);
-  if (nav) nav.classList.add('active');
-}
-
-
 const SUPA_URL='https://nafhjhioizwyeuwvpbtg.supabase.co';
 const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hZmhqaGlvaXp3eWV1d3ZwYnRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NDE2MDgsImV4cCI6MjA5MTExNzYwOH0.cXJLTIpx4uWLx9B_6XeG4R596MpO6cNOwmxA-MS6kkM';
 const tg=window.Telegram?.WebApp;
