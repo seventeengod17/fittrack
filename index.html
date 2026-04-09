@@ -132,6 +132,9 @@ input[type=range]{touch-action:none}
 .add-more{margin:0 16px 8px;border:1.5px dashed rgba(255,255,255,0.08);border-radius:14px;padding:12px;font-size:13px;color:var(--t3);text-align:center;flex-shrink:0}
 .save-final{margin:0 16px 8px;background:var(--p);border-radius:var(--r);padding:14px;font-size:15px;font-weight:600;color:#fff;text-align:center;flex-shrink:0}
 .saving-final{margin:0 16px 8px;background:var(--bg3);border-radius:var(--r);padding:14px;font-size:15px;font-weight:600;color:var(--t3);text-align:center;flex-shrink:0}
+/* SWIPE */
+.swipe-card{touch-action:pan-y}
+.swipe-content{will-change:transform}
 
 /* TIMER */
 .timer-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.87);display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(10px)}
@@ -489,6 +492,18 @@ input[type=range]{touch-action:none}
 <div class="toast" id="toast"></div>
 
 <script>
+
+function switchPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const el = document.getElementById('page-' + page);
+  if (el) el.classList.add('active');
+
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const nav = document.getElementById('nav-' + page);
+  if (nav) nav.classList.add('active');
+}
+
+
 const SUPA_URL='https://nafhjhioizwyeuwvpbtg.supabase.co';
 const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hZmhqaGlvaXp3eWV1d3ZwYnRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NDE2MDgsImV4cCI6MjA5MTExNzYwOH0.cXJLTIpx4uWLx9B_6XeG4R596MpO6cNOwmxA-MS6kkM';
 const tg=window.Telegram?.WebApp;
@@ -602,8 +617,9 @@ const REPS_ARR=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,20,25,30];
 const DIST_ARR=[0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,6,7,8,9,10,12,15,20,25,30,40,50];
 const DUR_ARR=[5,10,15,20,25,30,35,40,45,50,55,60,70,80,90,100,110,120];
 
-let flowStep=1,workoutType='strength',selectedEx='',selectedExList=[],searchQuery='';
-let workoutStartTime=null,workoutTimerIv=null,editingWorkoutId=null;
+let selectedEx=''; // legacy
+let prevLvNum=1,currentLvNum=1;
+
 let drumW=80,drumR=5,drumS=3,drumDist=5,drumDur=30;
 let doneExercises=[],newPRSession=false;
 let timerIv=null,timerSecs=60;
@@ -724,10 +740,12 @@ function renderWeekBars(activeDays){
 function calcStreak(workouts){
   const days=[...new Set(workouts.map(w=>new Date(w.created_at).toISOString().split('T')[0]))].sort().reverse();
   if(!days.length)return 0;
-  let streak=0;const today=new Date();
-  for(let i=0;i<days.length;i++){
-    const exp=new Date(today);exp.setDate(today.getDate()-i);
-    if(days[i]===exp.toISOString().split('T')[0])streak++;else break;
+  let streak=1;
+  // Стрик через день — каждые 1-2 дня
+  for(let i=1;i<days.length;i++){
+    const d1=new Date(days[i-1]),d2=new Date(days[i]);
+    const diff=Math.round((d1-d2)/86400000);
+    if(diff<=2)streak++;else break;
   }
   return streak;
 }
@@ -1041,327 +1059,459 @@ function renderAchievements(total,streak){
   }).join('');
 }
 
-// ── FLOW ─────────────────────────────────────────────────────────────────────
-function initFlow(){flowStep=1;selectedEx='';selectedExList=[];searchQuery='';doneExercises=[];workoutType='strength';drumW=80;drumR=5;drumS=3;drumDist=5;drumDur=30;editingWorkoutId=null;workoutStartTime=null;renderFlow();}
-function renderFlow(){const w=document.getElementById('flow-wrap');if(flowStep===1)renderStep1(w);else if(flowStep===2)renderStep2(w);else renderStep3(w);}
+// НОВЫЙ FLOW ТРЕНИРОВКИ
+// Концепция:
+// Шаг 1: выбор упражнений (мультивыбор) → Шаг 2: экран тренировки
+// Экран тренировки — главный экран где всё происходит:
+//   - список упражнений с подходами
+//   - кнопка "✓ подход" — автотаймер отдыха
+//   - карандаш — редактировать вес/повторения
+//   - свайп влево — удалить упражнение
+//   - счётчик времени тренировки
+//   - кнопка "добавить упражнение" открывает шаг 1 без сброса
 
-function renderStep1(wrap){
-  const presets=workoutType==='strength'?PRESETS_STR:PRESETS_CAR;
-  const q=searchQuery.toLowerCase();
-  const filtered=q?presets.filter(p=>p.toLowerCase().includes(q)):presets;
-  const showCustom=q&&!presets.some(p=>p.toLowerCase()===q);
-  const selCount=selectedExList.length;
-  wrap.innerHTML=`<div style="height:100%;display:flex;flex-direction:column">
-    <div class="flow-header"><button class="flow-back" onclick="switchPage('home')">✕</button><div class="flow-title">Упражнения</div><div class="flow-right" style="font-size:12px;color:var(--pl)">${selCount>0?selCount+' выбр':''}</div></div>
-    <div class="step-bar"><div class="step-dot active"></div><div class="step-dot"></div><div class="step-dot"></div></div>
-    <div class="type-row">
+// ДАННЫЕ ТРЕНИРОВКИ
+// doneExercises = [{name, sets: [{weight_kg, reps, done: bool}], type}]
+// Каждое упражнение имеет массив подходов
+
+let flowStep = 1;
+let workoutType = 'strength';
+let selectedExList = [];
+let searchQuery = '';
+let doneExercises = []; // [{name, type, sets:[{weight_kg,reps,done}]}]
+let editingWorkoutId = null;
+let workoutStartTime = null;
+let workoutTimerIv = null;
+let restTimerEndAt = null;
+let restTimerIv = null;
+let autoRestSeconds = 90; // авто таймер отдыха
+
+const WEIGHTS_ARR = [
+  ...Array.from({length:20},(_,i)=>parseFloat((0.5+i*0.5).toFixed(1))),
+  ...Array.from({length:90},(_,i)=>11+i),
+  ...Array.from({length:40},(_,i)=>parseFloat((102.5+i*2.5).toFixed(1))),
+];
+const REPS_ARR = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,25,30];
+const DIST_ARR = [0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,6,7,8,9,10,12,15,20,25,30];
+const DUR_ARR  = [5,10,15,20,25,30,35,40,45,50,55,60,70,80,90,100,110,120];
+
+function initFlow() {
+  flowStep = 1;
+  selectedExList = [];
+  searchQuery = '';
+  doneExercises = [];
+  editingWorkoutId = null;
+  workoutStartTime = null;
+  if(workoutTimerIv){clearInterval(workoutTimerIv);workoutTimerIv=null;}
+  stopRestTimer();
+  renderFlow();
+}
+
+function renderFlow() {
+  const w = document.getElementById('flow-wrap');
+  if(flowStep === 1) renderStep1(w);
+  else renderWorkoutScreen(w);
+}
+
+// ── ШАГ 1: ВЫБОР УПРАЖНЕНИЙ ──────────────────────────────────────────
+function renderStep1(wrap) {
+  const presets = workoutType==='strength' ? PRESETS_STR : PRESETS_CAR;
+  const q = searchQuery.toLowerCase();
+  const filtered = q ? presets.filter(p=>p.toLowerCase().includes(q)) : presets;
+  const showCustom = q && !presets.some(p=>p.toLowerCase()===q);
+  const customs = getCustomEx();
+  const filteredCustoms = q
+    ? customs.filter(c=>c.toLowerCase().includes(q) && !filtered.includes(c))
+    : customs.filter(c=>![...PRESETS_STR,...PRESETS_CAR].includes(c));
+  const selCount = selectedExList.length;
+
+  wrap.innerHTML = `<div style="height:100%;display:flex;flex-direction:column">
+    <div class="flow-header">
+      <button class="flow-back" onclick="${doneExercises.length ? 'flowStep=2;renderFlow()' : "switchPage('home')"}">
+        ${doneExercises.length ? '‹ назад' : '✕'}
+      </button>
+      <div class="flow-title">Упражнения</div>
+      <div style="font-size:12px;color:var(--pl);min-width:44px;text-align:right">${selCount>0?selCount+' выбр':''}</div>
+    </div>
+    <div style="display:flex;gap:8px;padding:10px 16px 0;flex-shrink:0">
       <div class="type-pill ${workoutType==='strength'?'sel':''}" onclick="setFType('strength')">💪 Силовая</div>
       <div class="type-pill ${workoutType==='cardio'?'sel':''}" onclick="setFType('cardio')">🏃 Кардио</div>
     </div>
-    <div class="search-wrap"><input id="ex-search" class="search-inp" placeholder="Поиск или своё название..." autocomplete="off" autocorrect="off" spellcheck="false"></div>
-    <div class="ex-list-scroll" id="ex-scroll">${renderExOpts(filtered,showCustom)}</div>
-    <button class="flow-btn ${selCount===0?'dim':''}" id="step1-btn" onclick="goStep2()">${selCount>0?'Далее ('+selCount+') →':'Выбери упражнения'}</button>
+    <div class="search-wrap" style="padding-top:10px">
+      <input id="ex-search" class="search-inp" placeholder="Поиск или своё (Enter чтобы добавить)..." autocomplete="off" autocorrect="off" spellcheck="false">
+    </div>
+    <div class="ex-list-scroll" id="ex-scroll">
+      ${[...filteredCustoms,...filtered].map(p=>{
+        const sel = selectedExList.includes(p);
+        const isCust = customs.includes(p) && ![...PRESETS_STR,...PRESETS_CAR].includes(p);
+        return `<div class="ex-option ${sel?'sel':''}" data-name="${p.replace(/"/g,'&quot;')}">
+          <span>${p}${isCust?'<span style="font-size:10px;color:var(--t4);margin-left:4px">своё</span>':''}</span>
+          <div class="ex-check">${sel?'✓':''}</div>
+        </div>`;
+      }).join('')}
+      ${showCustom?`<div class="custom-hint">Нажми <em>Enter</em> чтобы добавить <em>"${searchQuery}"</em></div>`:''}
+    </div>
+    <button class="flow-btn ${selCount===0?'dim':''}" id="step1-btn" onclick="goToWorkout()">
+      ${selCount>0 ? `Начать (${selCount}) →` : 'Выбери упражнения'}
+    </button>
   </div>`;
-  const inp=document.getElementById('ex-search');inp.value=searchQuery;
-  inp.addEventListener('input',function(){searchQuery=this.value;updateExList();});
-  inp.addEventListener('keydown',e=>{
-    if(e.key==='Enter'&&searchQuery.trim()){
-      const name=searchQuery.trim();
+
+  const inp = document.getElementById('ex-search');
+  inp.value = searchQuery;
+  inp.addEventListener('input', function(){
+    searchQuery = this.value;
+    renderStep1(wrap);
+    const i = document.getElementById('ex-search');
+    if(i){i.focus();const l=i.value.length;i.setSelectionRange(l,l);}
+  });
+  inp.addEventListener('keydown', e=>{
+    if(e.key==='Enter' && searchQuery.trim()){
+      const name = searchQuery.trim();
       if(!selectedExList.includes(name)){
         selectedExList.push(name);
-        addCustomEx(name); // сохраняем кастомное упражнение
+        addCustomEx(name);
         tg?.HapticFeedback?.selectionChanged?.();
       }
-      searchQuery='';inp.value='';updateExList();
+      searchQuery = '';
+      renderStep1(wrap);
     }
   });
-  // Event delegation для тогглинга галочек
-  const scroll=document.getElementById('ex-scroll');
+
+  const scroll = document.getElementById('ex-scroll');
   if(scroll){
-    scroll.addEventListener('click',function(e){
-      const opt=e.target.closest('.ex-option');
-      if(!opt)return;
-      const name=opt.dataset.name;
-      if(!name)return;
-      const idx=selectedExList.indexOf(name);
-      if(idx>-1){selectedExList.splice(idx,1);}
-      else{selectedExList.push(name);}
+    scroll.addEventListener('click', function(e){
+      const opt = e.target.closest('.ex-option');
+      if(!opt) return;
+      const name = opt.dataset.name;
+      if(!name) return;
+      const idx = selectedExList.indexOf(name);
+      if(idx>-1) selectedExList.splice(idx,1);
+      else selectedExList.push(name);
       tg?.HapticFeedback?.selectionChanged?.();
-      updateExList();
+      renderStep1(wrap);
+      // сохраняем фокус
+      const i = document.getElementById('ex-search');
+      if(i && document.activeElement === inp) i.focus();
     });
   }
-}
-
-function renderExOpts(filtered,showCustom){
-  // Добавляем кастомные упражнения в начало если нет поиска
-  const customs=getCustomEx();
-  const q=searchQuery.toLowerCase();
-  const filteredCustoms=q?customs.filter(c=>c.toLowerCase().includes(q)&&!filtered.includes(c)):customs.filter(c=>!filtered.includes(c));
-  const all=[...filteredCustoms,...filtered];
-  return all.map(p=>{
-    const sel=selectedExList.includes(p);
-    const isCustom=customs.includes(p)&&![...PRESETS_STR,...PRESETS_CAR].includes(p);
-    return`<div class="ex-option ${sel?'sel':''}" data-name="${p.replace(/"/g,'&quot;')}">
-      <span>${p}${isCustom?'<span style="font-size:10px;color:var(--t4);margin-left:4px">своё</span>':''}</span>
-      <div class="ex-check">${sel?'✓':''}</div>
-    </div>`;
-  }).join('')+(showCustom?`<div class="custom-hint">Нажми <em>Enter</em> чтобы добавить <em>"${searchQuery}"</em></div>`:'');
-}
-
-function updateExList(){
-  const presets=workoutType==='strength'?PRESETS_STR:PRESETS_CAR;
-  const q=searchQuery.toLowerCase();
-  const filtered=q?presets.filter(p=>p.toLowerCase().includes(q)):presets;
-  const showCustom=q&&!presets.some(p=>p.toLowerCase()===q);
-  const s=document.getElementById('ex-scroll');if(s)s.innerHTML=renderExOpts(filtered,showCustom);
-  const btn=document.getElementById('step1-btn');
-  const selCount=selectedExList.length;
-  if(btn){
-    btn.className='flow-btn'+(selCount===0?' dim':'');
-    btn.textContent=selCount>0?'Далее ('+selCount+') →':'Выбери упражнения';
-  }
-  // Обновляем счётчик в хедере
-  const right=document.querySelector('.flow-right');
-  if(right)right.textContent=selCount>0?selCount+' выбр':'';
 }
 
 function setFType(t){workoutType=t;selectedExList=[];searchQuery='';renderFlow();}
 
-function goStep2(){
-  if(selectedExList.length===0){
-    if(searchQuery.trim()){selectedExList.push(searchQuery.trim());}
-    else{toast('Выбери хотя бы одно упражнение');return;}
-  }
-  // Для мультивыбора: берём первое упражнение, остальные добавим после
-  selectedEx=selectedExList[0];
-  flowStep=2;renderFlow();
-}
-
-function renderStep2(wrap){
-  function renderPicker(){
-    const isStr=workoutType==='strength';
-    // Find weight index for slider
-    const wIdx=Math.max(0,WEIGHTS_ARR.findIndex(v=>v>=drumW));
-    return`<div style="height:100%;display:flex;flex-direction:column">
-      <div class="flow-header"><button class="flow-back" onclick="goBack1()">‹ назад</button><div class="flow-title" style="font-size:15px">${selectedEx}<span style="color:var(--t3);font-size:12px;font-weight:400;margin-left:6px">${doneExercises.length+1}/${selectedExList.length}</span></div><div class="flow-right"></div></div>
-      <div class="step-bar"><div class="step-dot done"></div><div class="step-dot active"></div><div class="step-dot"></div></div>
-      <div class="picker-area">
-        ${isStr?`
-        <div class="picker-row">
-          <div class="picker-top"><div class="picker-lbl">Вес</div><div><span class="picker-val" id="pv-w">${drumW}</span><span class="picker-unit">кг</span></div></div>
-          <input type="range" id="sl-w" min="0" max="${WEIGHTS_ARR.length-1}" step="1" value="${wIdx}" oninput="onSlW(this.value)">
-        </div>
-        <div class="picker-row">
-          <div class="picker-top"><div class="picker-lbl">Повторения</div><div><span class="picker-val" id="pv-r">${drumR}</span><span class="picker-unit">повт</span></div></div>
-          <input type="range" id="sl-r" min="1" max="30" step="1" value="${drumR}" oninput="onSlR(this.value)">
-        </div>
-        <div class="picker-row">
-          <div class="picker-top"><div class="picker-lbl">Подходы</div><div><span class="picker-val" id="pv-s">${drumS}</span><span class="picker-unit">подх</span></div></div>
-          <input type="range" id="sl-s" min="1" max="10" step="1" value="${drumS}" oninput="onSlS(this.value)">
-        </div>`:`
-        <div class="picker-row">
-          <div class="picker-top"><div class="picker-lbl">Дистанция</div><div><span class="picker-val" id="pv-dist">${drumDist}</span><span class="picker-unit">км</span></div></div>
-          <input type="range" id="sl-dist" min="0" max="${DIST_ARR.length-1}" step="1" value="${Math.max(0,DIST_ARR.findIndex(v=>v>=drumDist))}" oninput="onSlDist(this.value)">
-        </div>
-        <div class="picker-row">
-          <div class="picker-top"><div class="picker-lbl">Длительность</div><div><span class="picker-val" id="pv-dur">${drumDur}</span><span class="picker-unit">мин</span></div></div>
-          <input type="range" id="sl-dur" min="5" max="120" step="5" value="${drumDur}" oninput="onSlDur(this.value)">
-        </div>`}
-      </div>
-      <button class="flow-btn" onclick="addToDone()">Добавить в тренировку</button>
-    </div>`;
-  }
-  wrap.innerHTML=renderPicker();
-}
-
-// Slider handlers
-function onSlW(v){drumW=WEIGHTS_ARR[parseInt(v)];const el=document.getElementById('pv-w');if(el)el.textContent=drumW;tg?.HapticFeedback?.selectionChanged?.();}
-function onSlR(v){drumR=parseInt(v);const el=document.getElementById('pv-r');if(el)el.textContent=drumR;tg?.HapticFeedback?.selectionChanged?.();}
-function onSlS(v){drumS=parseInt(v);const el=document.getElementById('pv-s');if(el)el.textContent=drumS;tg?.HapticFeedback?.selectionChanged?.();}
-function onSlDist(v){drumDist=DIST_ARR[parseInt(v)];const el=document.getElementById('pv-dist');if(el)el.textContent=drumDist;tg?.HapticFeedback?.selectionChanged?.();}
-function onSlDur(v){drumDur=parseInt(v);const el=document.getElementById('pv-dur');if(el)el.textContent=drumDur;tg?.HapticFeedback?.selectionChanged?.();}
 
 
-
-
-function goBack1(){
-  // Если есть ещё упражнения в очереди — не сбрасываем список
-  flowStep=1;renderFlow();
-}
-function addToDone(){
-  if(workoutType==='strength')doneExercises.push({name:selectedEx,weight_kg:drumW,reps:drumR,sets:drumS,type:'strength'});
-  else doneExercises.push({name:selectedEx,distance_km:drumDist,duration_min:drumDur,type:'cardio'});
-  tg?.HapticFeedback?.impactOccurred?.('light');
-  // Если есть ещё невыбранные упражнения из мультивыбора — идём к следующему
-  const doneNames=doneExercises.map(e=>e.name);
-  const nextEx=selectedExList.find(n=>!doneNames.includes(n));
-  if(nextEx){
-    selectedEx=nextEx;
-    // Сброс параметров для нового упражнения
-    drumW=80;drumR=10;drumS=3;
-    renderFlow(); // остаёмся на step2
-  } else {
-    flowStep=3;renderFlow();
-  }
-}
-
-function renderStep3(wrap){
-  if(!workoutStartTime)workoutStartTime=Date.now();
+// ── ШАГ 2: ЭКРАН ТРЕНИРОВКИ ──────────────────────────────────────────
+function renderWorkoutScreen(wrap) {
   function fmtDur(ms){const m=Math.floor(ms/60000);const s=Math.floor((ms%60000)/1000);return m+'м '+String(s).padStart(2,'0')+'с';}
-  wrap.innerHTML=`<div style="height:100%;display:flex;flex-direction:column">
-    <div class="flow-header">
-      <button class="flow-back" onclick="goBack2()">‹</button>
-      <div class="flow-title">${editingWorkoutId?'Редактирование':'Тренировка'}</div>
-      <div style="display:flex;align-items:center;gap:8px">
-        ${editingWorkoutId?'<span style="font-size:11px;color:var(--pl)">✏️</span>':`<div id="workout-dur" style="font-size:12px;color:var(--t3)">0м 00с</div>`}
-        <button onclick="showTimer()" style="font-size:20px;color:var(--t3)">⏱</button>
+
+  wrap.innerHTML = `<div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
+    <div class="flow-header" style="flex-shrink:0">
+      <button class="flow-back" onclick="switchPage('home')" style="font-size:13px;color:var(--t3)">✕</button>
+      <div style="flex:1;text-align:center">
+        <div style="font-size:16px;font-weight:600">${editingWorkoutId?'Редактирование':'Тренировка'}</div>
+        <div id="workout-dur" style="font-size:11px;color:var(--t3)">${workoutStartTime?fmtDur(Date.now()-workoutStartTime):'0м 00с'}</div>
+      </div>
+      <button onclick="showTimer()" style="font-size:18px;color:var(--t3);min-width:44px;text-align:right">⏱</button>
+    </div>
+
+    <!-- Таймер отдыха (встроенный, не оверлей) -->
+    <div id="rest-bar" style="display:none;background:rgba(127,119,221,0.12);padding:8px 16px;display:none;align-items:center;gap:10px;flex-shrink:0;border-bottom:0.5px solid rgba(127,119,221,0.2)">
+      <div style="font-size:12px;color:var(--pl)">⏸ отдых</div>
+      <div id="rest-cnt" style="font-size:18px;font-weight:700;color:#fff;flex:1;text-align:center">90</div>
+      <div style="display:flex;gap:6px">
+        <button onclick="setRestTime(60)" style="font-size:11px;color:var(--t3);background:var(--bg3);border-radius:8px;padding:4px 8px">1м</button>
+        <button onclick="setRestTime(90)" style="font-size:11px;color:var(--t3);background:var(--bg3);border-radius:8px;padding:4px 8px">1:30</button>
+        <button onclick="setRestTime(120)" style="font-size:11px;color:var(--t3);background:var(--bg3);border-radius:8px;padding:4px 8px">2м</button>
+        <button onclick="stopRestTimer()" style="font-size:11px;color:#f472b6;background:rgba(180,30,80,0.15);border-radius:8px;padding:4px 8px">✕</button>
       </div>
     </div>
-    <div class="step-bar"><div class="step-dot done"></div><div class="step-dot done"></div><div class="step-dot active"></div></div>
-    <div class="done-list" id="done-list-wrap">
-      ${doneExercises.map((e,i)=>`<div class="done-card">
-        <div style="flex:1;min-width:0">
-          <div class="done-name">${e.name}</div>
-          <div class="done-detail" id="done-detail-${i}">${e.type==='strength'?`${e.weight_kg}кг × ${e.reps} × ${e.sets}п`:`${e.distance_km}км · ${e.duration_min}мин`}</div>
-          <div id="done-edit-${i}" style="display:none;margin-top:8px;display:none">
-            ${e.type==='strength'?`
-            <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px">
-              <span style="font-size:11px;color:var(--t3);width:36px">Вес</span>
-              <input type="number" inputmode="decimal" value="${e.weight_kg}" style="flex:1;background:var(--bg3);border:0.5px solid var(--bd);border-radius:8px;padding:6px 10px;font-size:14px;color:#fff;outline:none" onchange="editEx(${i},'weight_kg',parseFloat(this.value)||0)">
-              <span style="font-size:12px;color:var(--t3)">кг</span>
-            </div>
-            <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px">
-              <span style="font-size:11px;color:var(--t3);width:36px">Повт</span>
-              <input type="number" inputmode="numeric" value="${e.reps}" style="flex:1;background:var(--bg3);border:0.5px solid var(--bd);border-radius:8px;padding:6px 10px;font-size:14px;color:#fff;outline:none" onchange="editEx(${i},'reps',parseInt(this.value)||0)">
-            </div>
-            <div style="display:flex;gap:6px;align-items:center">
-              <span style="font-size:11px;color:var(--t3);width:36px">Подх</span>
-              <input type="number" inputmode="numeric" value="${e.sets}" style="flex:1;background:var(--bg3);border:0.5px solid var(--bd);border-radius:8px;padding:6px 10px;font-size:14px;color:#fff;outline:none" onchange="editEx(${i},'sets',parseInt(this.value)||0)">
-            </div>`:`
-            <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px">
-              <span style="font-size:11px;color:var(--t3);width:36px">Км</span>
-              <input type="number" inputmode="decimal" value="${e.distance_km}" style="flex:1;background:var(--bg3);border:0.5px solid var(--bd);border-radius:8px;padding:6px 10px;font-size:14px;color:#fff;outline:none" onchange="editEx(${i},'distance_km',parseFloat(this.value)||0)">
-            </div>
-            <div style="display:flex;gap:6px;align-items:center">
-              <span style="font-size:11px;color:var(--t3);width:36px">Мин</span>
-              <input type="number" inputmode="numeric" value="${e.duration_min}" style="flex:1;background:var(--bg3);border:0.5px solid var(--bd);border-radius:8px;padding:6px 10px;font-size:14px;color:#fff;outline:none" onchange="editEx(${i},'duration_min',parseInt(this.value)||0)">
-            </div>`}
+
+    <div style="flex:1;overflow-y:auto;padding:8px 12px" id="workout-ex-list">
+      ${renderExerciseCards()}
+    </div>
+
+    <div style="padding:8px 12px;display:flex;flex-direction:column;gap:6px;flex-shrink:0;border-top:0.5px solid var(--bd)">
+      <button onclick="flowStep=1;selectedExList=[];searchQuery='';renderFlow()" 
+        style="background:var(--bg2);border-radius:12px;padding:11px;font-size:13px;color:var(--pl);border:0.5px solid rgba(127,119,221,0.25)">
+        + добавить упражнение
+      </button>
+      <button onclick="saveAsTemplate()" 
+        style="background:var(--bg2);border-radius:12px;padding:10px;font-size:12px;color:var(--t3);border:0.5px solid var(--bd)">
+        💾 сохранить как шаблон
+      </button>
+      <button class="save-final" id="save-final" onclick="saveWorkout()">
+        ${editingWorkoutId?'Сохранить изменения':'Завершить тренировку'}
+      </button>
+    </div>
+  </div>`;
+
+  // Таймер длительности
+  if(workoutTimerIv) clearInterval(workoutTimerIv);
+  if(workoutStartTime){
+    workoutTimerIv = setInterval(()=>{
+      const el = document.getElementById('workout-dur');
+      if(el) el.textContent = fmtDur(Date.now()-workoutStartTime);
+    }, 1000);
+  }
+
+  // Показываем таймер отдыха если активен
+  if(restTimerEndAt && restTimerEndAt > Date.now()){
+    showRestBar();
+  }
+
+  // Свайп для удаления
+  initSwipeToDelete();
+}
+
+function renderExerciseCards() {
+  if(!doneExercises.length) return '<div class="empty-state">Добавь упражнение</div>';
+  return doneExercises.map((ex,ei)=>`
+    <div class="swipe-card" data-ei="${ei}" id="ex-card-${ei}" style="background:var(--bg2);border-radius:14px;margin-bottom:8px;border:0.5px solid var(--bd);overflow:hidden;position:relative">
+      <!-- Фон для свайпа (красный) -->
+      <div style="position:absolute;right:0;top:0;bottom:0;width:80px;background:rgba(180,30,80,0.3);display:flex;align-items:center;justify-content:center;border-radius:0 14px 14px 0">
+        <i class="ti ti-trash" style="font-size:20px;color:#f472b6"></i>
+      </div>
+      <!-- Контент карточки -->
+      <div class="swipe-content" style="background:var(--bg2);position:relative;z-index:1;border-radius:14px;transition:transform .2s ease">
+        <div style="padding:12px 14px 8px;display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:15px;font-weight:600">${ex.name}</div>
+          <div style="display:flex;gap:6px">
+            <button onclick="addSet(${ei})" style="font-size:11px;color:var(--pl);background:var(--pdim);border-radius:8px;padding:4px 10px;border:0.5px solid rgba(127,119,221,0.25)">+ подход</button>
+            <button onclick="deleteExercise(${ei})" style="font-size:11px;color:var(--t3);padding:4px 8px"><i class="ti ti-trash" style="font-size:14px"></i></button>
           </div>
         </div>
-        <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0;margin-left:8px">
-          <button onclick="toggleEditDone(${i})" style="font-size:11px;color:var(--pl);padding:4px 8px;background:var(--pdim);border-radius:8px">✏️</button>
-          <button class="done-del" onclick="delDone(${i})">✕</button>
+        <div style="padding:0 14px 10px">
+          ${ex.sets.map((set,si)=>renderSetRow(ei,si,set,ex.type)).join('')}
         </div>
-      </div>`).join('')}
-    </div>
-    <button class="add-more" onclick="addMore()">+ ещё упражнение</button>
-    <button class="add-more" onclick="saveAsTemplate()" style="border-color:rgba(127,119,221,0.2);color:var(--pl)">💾 сохранить как шаблон</button>
-    <button class="save-final" id="save-final" onclick="saveWorkout()">Завершить тренировку</button>
+      </div>
+    </div>`).join('');
+}
+
+function renderSetRow(ei, si, set, type) {
+  const done = set.done;
+  return `<div id="set-row-${ei}-${si}" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding:6px 0;border-bottom:0.5px solid var(--bd)">
+    <div style="font-size:11px;color:var(--t4);min-width:20px">${si+1}</div>
+    ${type==='strength' ? `
+      <input type="number" inputmode="decimal" value="${set.weight_kg||''}" placeholder="кг"
+        style="flex:1;background:${done?'rgba(127,119,221,0.08)':'var(--bg3)'};border:0.5px solid ${done?'rgba(127,119,221,0.3)':'var(--bd)'};border-radius:8px;padding:7px 10px;font-size:15px;color:${done?'var(--pl)':'#fff'};outline:none;text-align:center"
+        onchange="updateSet(${ei},${si},'weight_kg',parseFloat(this.value)||0)">
+      <div style="font-size:12px;color:var(--t4)">×</div>
+      <input type="number" inputmode="numeric" value="${set.reps||''}" placeholder="повт"
+        style="flex:1;background:${done?'rgba(127,119,221,0.08)':'var(--bg3)'};border:0.5px solid ${done?'rgba(127,119,221,0.3)':'var(--bd)'};border-radius:8px;padding:7px 10px;font-size:15px;color:${done?'var(--pl)':'#fff'};outline:none;text-align:center"
+        onchange="updateSet(${ei},${si},'reps',parseInt(this.value)||0)">
+    ` : `
+      <input type="number" inputmode="decimal" value="${set.distance_km||''}" placeholder="км"
+        style="flex:1;background:var(--bg3);border:0.5px solid var(--bd);border-radius:8px;padding:7px 10px;font-size:15px;color:#fff;outline:none;text-align:center"
+        onchange="updateSet(${ei},${si},'distance_km',parseFloat(this.value)||0)">
+      <input type="number" inputmode="numeric" value="${set.duration_min||''}" placeholder="мин"
+        style="flex:1;background:var(--bg3);border:0.5px solid var(--bd);border-radius:8px;padding:7px 10px;font-size:15px;color:#fff;outline:none;text-align:center"
+        onchange="updateSet(${ei},${si},'duration_min',parseInt(this.value)||0)">
+    `}
+    <button onclick="toggleSetDone(${ei},${si})"
+      style="width:36px;height:36px;border-radius:50%;background:${done?'var(--p)':'var(--bg3)'};border:1.5px solid ${done?'var(--p)':'var(--t4)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s">
+      <i class="ti ti-check" style="font-size:16px;color:${done?'#fff':'var(--t4)'}"></i>
+    </button>
+    ${si>0?`<button onclick="deleteSet(${ei},${si})" style="color:var(--t4);padding:4px"><i class="ti ti-x" style="font-size:13px"></i></button>`:'<div style="width:20px"></div>'}
   </div>`;
-  // Таймер длительности тренировки
-  if(workoutTimerIv)clearInterval(workoutTimerIv);
-  workoutTimerIv=setInterval(()=>{
-    const el=document.getElementById('workout-dur');
-    if(el)el.textContent=fmtDur(Date.now()-workoutStartTime);
-  },1000);
 }
 
-function toggleEditDone(i){
-  const el=document.getElementById('done-edit-'+i);
-  if(!el)return;
-  el.style.display=el.style.display==='none'?'block':'none';
-}
-function editEx(i,field,val){
-  if(!doneExercises[i])return;
-  doneExercises[i][field]=val;
-  const det=document.getElementById('done-detail-'+i);
-  const e=doneExercises[i];
-  if(det)det.textContent=e.type==='strength'?`${e.weight_kg}кг × ${e.reps} × ${e.sets}п`:`${e.distance_km}км · ${e.duration_min}мин`;
+function updateSet(ei, si, field, val) {
+  if(!doneExercises[ei]?.sets[si]) return;
+  doneExercises[ei].sets[si][field] = val;
 }
 
-function goBack2(){flowStep=1;selectedEx='';searchQuery='';renderFlow();}
-
-async function confirmDeleteWorkout(idx){
-  const ws=window._histWorkouts||[];
-  const w=ws[idx];if(!w)return;
-  if(!confirm('Удалить тренировку?'))return;
-  try{
-    await sbDelete('exercises','workout_id=eq.'+w.id);
-    await sbDelete('workouts','id=eq.'+w.id);
-    toast('Тренировка удалена');
-    tg?.HapticFeedback?.notificationOccurred?.('success');
-    loadHistory();
-  }catch(e){console.error(e);toast('Ошибка удаления');}
-}
-function repeatWorkout(idx){
-  const ws=window._histWorkouts||[];
-  const w=ws[idx];if(!w)return;
-  editingWorkoutId=null; // новая тренировка на основе старой
-  workoutType=w.type;
-  selectedExList=(w.exercises||[]).map(e=>e.name).filter(Boolean);
-  doneExercises=(w.exercises||[]).map(e=>({...e,type:w.type}));
-  workoutStartTime=Date.now();
-  flowStep=3;switchPage('new');renderFlow();
-  toast('Тренировка загружена — можешь редактировать');
+function toggleSetDone(ei, si) {
+  if(!doneExercises[ei]?.sets[si]) return;
+  const set = doneExercises[ei].sets[si];
+  set.done = !set.done;
+  tg?.HapticFeedback?.impactOccurred?.('light');
+  // Перерисовываем только эту строку
+  const row = document.getElementById(`set-row-${ei}-${si}`);
+  if(row) row.outerHTML = renderSetRow(ei, si, set, doneExercises[ei].type);
+  // Запускаем таймер отдыха если подход отмечен
+  if(set.done) startRestTimer(autoRestSeconds);
 }
 
-function editWorkout(idx){
-  const ws=window._histWorkouts||[];
-  const w=ws[idx];if(!w)return;
-  editingWorkoutId=w.id; // редактируем существующую
-  workoutType=w.type;
-  selectedExList=(w.exercises||[]).map(e=>e.name).filter(Boolean);
-  doneExercises=(w.exercises||[]).map(e=>({...e,type:w.type}));
-  workoutStartTime=null; // не показываем таймер при редактировании
-  flowStep=3;switchPage('new');renderFlow();
-  toast('Редактирование тренировки');
+function addSet(ei) {
+  if(!doneExercises[ei]) return;
+  const ex = doneExercises[ei];
+  const lastSet = ex.sets[ex.sets.length-1] || {weight_kg:60,reps:10};
+  ex.sets.push({weight_kg:lastSet.weight_kg, reps:lastSet.reps, done:false});
+  tg?.HapticFeedback?.selectionChanged?.();
+  // Перерисовываем карточку
+  const card = document.getElementById(`ex-card-${ei}`);
+  if(card) card.outerHTML = renderExerciseCards().split('\n').filter(Boolean)[ei] || '';
+  // Полная перерисовка проще
+  const list = document.getElementById('workout-ex-list');
+  if(list) list.innerHTML = renderExerciseCards();
+  initSwipeToDelete();
 }
-function delDone(i){doneExercises.splice(i,1);if(!doneExercises.length)flowStep=1;renderFlow();}
-function addMore(){flowStep=1;selectedEx='';searchQuery='';renderFlow();}
 
-async function saveWorkout(){
-  if(workoutTimerIv){clearInterval(workoutTimerIv);workoutTimerIv=null;}
-  if(!doneExercises.length){toast('Добавь упражнение');return;}
-  const btn=document.getElementById('save-final');if(btn){btn.className='saving-final';btn.textContent='Сохраняем...';}
-  tg?.HapticFeedback?.impactOccurred?.('medium');
-  try{
-    // Сохраняем кастомные упражнения
-    doneExercises.forEach(e=>{
-      const allP=[...PRESETS_STR,...PRESETS_CAR];
-      if(!allP.includes(e.name))addCustomEx(e.name);
+function deleteSet(ei, si) {
+  if(!doneExercises[ei]?.sets) return;
+  if(doneExercises[ei].sets.length <= 1) return;
+  doneExercises[ei].sets.splice(si, 1);
+  const list = document.getElementById('workout-ex-list');
+  if(list){list.innerHTML = renderExerciseCards();initSwipeToDelete();}
+}
+
+function deleteExercise(ei) {
+  doneExercises.splice(ei, 1);
+  const list = document.getElementById('workout-ex-list');
+  if(list){list.innerHTML = renderExerciseCards();initSwipeToDelete();}
+  if(!doneExercises.length) {flowStep=1;renderFlow();}
+}
+
+// ── СВАЙП ВЛЕВО ДЛЯ УДАЛЕНИЯ ──────────────────────────────────────────
+function initSwipeToDelete(){
+  document.querySelectorAll('.swipe-card').forEach(card=>{
+    const content = card.querySelector('.swipe-content');
+    if(!content) return;
+    let startX=0, startY=0, dx=0, swiping=false, axisLocked=false, isH=false;
+    const THRESHOLD = 80;
+
+    content.addEventListener('touchstart',e=>{
+      startX=e.touches[0].clientX;startY=e.touches[0].clientY;
+      dx=0;swiping=true;axisLocked=false;isH=false;
+    },{passive:true});
+
+    content.addEventListener('touchmove',e=>{
+      if(!swiping) return;
+      const cx=e.touches[0].clientX,cy=e.touches[0].clientY;
+      if(!axisLocked){
+        const adx=Math.abs(cx-startX),ady=Math.abs(cy-startY);
+        if(adx>5||ady>5){axisLocked=true;isH=adx>ady;}
+      }
+      if(!isH) return;
+      e.preventDefault();
+      dx=Math.min(0,cx-startX);
+      content.style.transform=`translateX(${dx}px)`;
+    },{passive:false});
+
+    content.addEventListener('touchend',()=>{
+      if(!swiping) return;swiping=false;
+      if(dx < -THRESHOLD){
+        // Удаляем
+        const ei=parseInt(card.dataset.ei);
+        content.style.transform=`translateX(-100%)`;
+        setTimeout(()=>deleteExercise(ei),200);
+      } else {
+        content.style.transform='';
+      }
     });
-    let workoutId;
-    if(editingWorkoutId){
-      // Редактируем существующую — удаляем старые упражнения и пишем новые
-      workoutId=editingWorkoutId;
-      await sbDelete('exercises','workout_id=eq.'+workoutId);
-    } else {
-      // Создаём новую тренировку
-      const [workout]=await sbPost('workouts',{user_id:uid(),type:workoutType});
-      if(!workout||!workout.id)throw new Error('No workout id: '+JSON.stringify(workout));
-      workoutId=workout.id;
+  });
+}
+
+// ── ТАЙМЕР ОТДЫХА ────────────────────────────────────────────────────
+function startRestTimer(secs){
+  restTimerEndAt = Date.now() + secs*1000;
+  showRestBar();
+  if(restTimerIv) clearInterval(restTimerIv);
+  restTimerIv = setInterval(()=>{
+    const rem = Math.max(0, Math.ceil((restTimerEndAt-Date.now())/1000));
+    const el = document.getElementById('rest-cnt');
+    if(el) el.textContent = rem;
+    if(rem<=0){
+      stopRestTimer();
+      tg?.HapticFeedback?.notificationOccurred?.('success');
+      toast('Отдых закончен — следующий подход!');
     }
-    // Сохраняем упражнения
-    const exRows=doneExercises.map(e=>e.type==='strength'
-      ?{workout_id:workoutId,name:e.name,weight_kg:e.weight_kg,reps:e.reps,sets:e.sets}
-      :{workout_id:workoutId,name:e.name,distance_km:e.distance_km,duration_min:e.duration_min});
-    const exRes=await fetch(SUPA_URL+'/rest/v1/exercises',{
-      method:'POST',
-      headers:{...sbHeaders,'Prefer':'return=minimal'},
-      body:JSON.stringify(exRows)
-    });
-    if(!exRes.ok){const err=await exRes.text();throw new Error('exercises: '+err);}
-    newPRSession=false;
-    editingWorkoutId=null;
-    const msg=editingWorkoutId?'Тренировка обновлена ✓':'Тренировка сохранена 💪';
-    tg?.HapticFeedback?.notificationOccurred?.('success');toast('Тренировка сохранена 💪');
-    setTimeout(()=>switchPage('home'),700);
-  }catch(err){
-    console.error(err);toast('Ошибка сохранения');
-    tg?.HapticFeedback?.notificationOccurred?.('error');
-    const b=document.getElementById('save-final');if(b){b.className='save-final';b.textContent='Завершить тренировку';}
+  },500);
+}
+
+function setRestTime(secs){
+  autoRestSeconds = secs;
+  startRestTimer(secs);
+}
+
+function stopRestTimer(){
+  if(restTimerIv){clearInterval(restTimerIv);restTimerIv=null;}
+  restTimerEndAt = null;
+  const bar = document.getElementById('rest-bar');
+  if(bar) bar.style.display='none';
+}
+
+function showRestBar(){
+  const bar = document.getElementById('rest-bar');
+  if(bar){
+    bar.style.display='flex';
+    const rem = Math.max(0,Math.ceil((restTimerEndAt-Date.now())/1000));
+    const el = document.getElementById('rest-cnt');
+    if(el) el.textContent = rem;
   }
 }
+
+// ── ШАБЛОНЫ — СТАРТ (новый flow) ─────────────────────────────────────
+function startTemplate(i){
+  const t = getTemplates()[i];
+  if(!t) return;
+  editingWorkoutId = null;
+  workoutType = 'strength';
+  // Сразу создаём упражнения с дефолтными подходами
+  doneExercises = t.exercises.map(name=>({
+    name,
+    type: 'strength',
+    sets: [{weight_kg:60, reps:10, done:false}]
+  }));
+  selectedExList = [];
+  workoutStartTime = Date.now();
+  flowStep = 2;
+  switchPage('new');
+  renderFlow();
+  toast('Шаблон: '+t.name);
+}
+
+// ── РЕДАКТИРОВАНИЕ ТРЕНИРОВКИ (новый flow) ────────────────────────────
+function editWorkout(idx){
+  const ws = window._histWorkouts||[];
+  const w = ws[idx];
+  if(!w) return;
+  editingWorkoutId = w.id;
+  workoutType = w.type;
+  // Восстанавливаем с подходами
+  const exMap = {};
+  (w.exercises||[]).forEach(e=>{
+    if(!exMap[e.name]) exMap[e.name]={name:e.name,type:w.type,sets:[]};
+    exMap[e.name].sets.push({weight_kg:e.weight_kg||0,reps:e.reps||0,done:false});
+  });
+  doneExercises = Object.values(exMap);
+  if(!doneExercises.length){
+    // Если нет упражнений — хотя бы создадим пустые
+    const names = [...new Set((w.exercises||[]).map(e=>e.name).filter(Boolean))];
+    doneExercises = names.map(n=>({name:n,type:w.type,sets:[{weight_kg:0,reps:0,done:false}]}));
+  }
+  selectedExList = [];
+  workoutStartTime = null;
+  flowStep = 2;
+  switchPage('new');
+  renderFlow();
+  toast('Редактирование тренировки');
+}
+
+function repeatWorkout(idx){
+  const ws = window._histWorkouts||[];
+  const w = ws[idx];
+  if(!w) return;
+  editingWorkoutId = null;
+  workoutType = w.type;
+  const exMap = {};
+  (w.exercises||[]).forEach(e=>{
+    if(!exMap[e.name]) exMap[e.name]={name:e.name,type:w.type,sets:[]};
+    exMap[e.name].sets.push({weight_kg:e.weight_kg||0,reps:e.reps||0,done:false});
+  });
+  doneExercises = Object.values(exMap);
+  selectedExList = [];
+  workoutStartTime = Date.now();
+  flowStep = 2;
+  switchPage('new');
+  renderFlow();
+  toast('Тренировка загружена');
+}
+
+// ── СОХРАНЕНИЕ ТРЕНИРОВКИ ────────────────────────────────────────────
+// saveWorkout moved to new flow
+
+
 
 function showTimer(){document.getElementById('timer-overlay').style.display='flex';startTimer(timerSecs);}
 function hideTimer(){document.getElementById('timer-overlay').style.display='none';if(timerIv){clearInterval(timerIv);timerIv=null;}}
@@ -1608,18 +1758,7 @@ function deleteTemplate(i){
   toast('Шаблон удалён');
 }
 
-function startTemplate(i){
-  const t=getTemplates()[i];if(!t)return;
-  editingWorkoutId=null;
-  workoutType='strength';
-  selectedExList=[...t.exercises];
-  doneExercises=[];
-  workoutStartTime=Date.now();
-  selectedEx=selectedExList[0];
-  drumW=80;drumR=10;drumS=3;
-  flowStep=2;switchPage('new');renderFlow();
-  toast('Шаблон: '+t.name);
-}
+// startTemplate moved to new flow
 
 function saveAsTemplate(){
   const name=prompt('Название шаблона?');
