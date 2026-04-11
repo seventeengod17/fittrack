@@ -609,9 +609,9 @@ let selectedEx=''; // legacy
 let prevLvNum=1,currentLvNum=1;
 
 let drumW=80,drumR=5,drumS=3,drumDist=5,drumDur=30;
-let doneExercises=[],newPRSession=false;
+let doneExercises=[],newPRSession=false,editingWorkoutId=null,workoutStartTime=null,workoutTimerIv=null,restTimerEndAt=null,restTimerIv=null,autoRestSeconds=90;
 let timerIv=null,timerSecs=60;
-let prevLvNum=1,currentLvNum=1,dailyData=null;
+let dailyData=null;
 
 const uid=()=>tg?.initDataUnsafe?.user?.id||'12345';
 const firstName=()=>tg?.initDataUnsafe?.user?.first_name||'Атлет';
@@ -1062,26 +1062,21 @@ function renderAchievements(total,streak){
 // doneExercises = [{name, sets: [{weight_kg, reps, done: bool}], type}]
 // Каждое упражнение имеет массив подходов
 
-let flowStep = 1;
-let workoutType = 'strength';
-let selectedExList = [];
-let searchQuery = '';
-let doneExercises = []; // [{name, type, sets:[{weight_kg,reps,done}]}]
-let editingWorkoutId = null;
-let workoutStartTime = null;
-let workoutTimerIv = null;
-let restTimerEndAt = null;
-let restTimerIv = null;
-let autoRestSeconds = 90; // авто таймер отдыха
+flowStep = 1;
+workoutType = 'strength';
+selectedExList = [];
+searchQuery = '';
+doneExercises = [];
+editingWorkoutId = null;
+workoutStartTime = null;
+workoutTimerIv = null;
+restTimerEndAt = null;
+restTimerIv = null;
+autoRestSeconds = 90; // авто таймер отдыха
 
-const WEIGHTS_ARR = [
-  ...Array.from({length:20},(_,i)=>parseFloat((0.5+i*0.5).toFixed(1))),
-  ...Array.from({length:90},(_,i)=>11+i),
-  ...Array.from({length:40},(_,i)=>parseFloat((102.5+i*2.5).toFixed(1))),
-];
-const REPS_ARR = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,25,30];
-const DIST_ARR = [0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,6,7,8,9,10,12,15,20,25,30];
-const DUR_ARR  = [5,10,15,20,25,30,35,40,45,50,55,60,70,80,90,100,110,120];
+
+
+
 
 function initFlow() {
   flowStep = 1;
@@ -1115,7 +1110,7 @@ function renderStep1(wrap) {
 
   wrap.innerHTML = `<div style="height:100%;display:flex;flex-direction:column">
     <div class="flow-header">
-      <button class="flow-back" onclick="${doneExercises.length ? 'flowStep=2;renderFlow()' : "switchPage('home')"}">
+      <button class="flow-back" onclick="doneExercises.length ? (flowStep=2,renderFlow()) : switchPage('home')">
         ${doneExercises.length ? '‹ назад' : '✕'}
       </button>
       <div class="flow-title">Упражнения</div>
