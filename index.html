@@ -802,7 +802,8 @@ async function loadHistory(){
           <div class="wcard-val" style="color:${color}">${val}</div>
           <div style="display:flex;gap:4px">
             <button onclick="editWorkout(${wIdx})" style="font-size:10px;color:var(--pl);background:var(--pdim);border-radius:8px;padding:3px 8px;border:0.5px solid rgba(127,119,221,0.3)">✏️ ред.</button>
-            <button onclick="repeatWorkout(${wIdx})" style="font-size:10px;color:var(--t3);background:var(--bg3);border-radius:8px;padding:3px 8px;border:0.5px solid var(--bd)">повторить</button>
+            <button onclick="editWorkoutDate(${wIdx})" style="font-size:10px;color:var(--t3);background:var(--bg3);border-radius:8px;padding:3px 8px;border:0.5px solid var(--bd)">📅 дата</button>
+            <button onclick="deleteWorkout(${wIdx})" style="font-size:10px;color:#f472b6;background:rgba(180,30,80,0.08);border-radius:8px;padding:3px 8px;border:0.5px solid rgba(180,30,80,0.2)">🗑 удалить</button>
           </div>
         </div>
       </div>`;
@@ -1469,6 +1470,38 @@ function repeatWorkout(idx){
   switchPage('new');
   renderFlow();
   toast('Тренировка загружена');
+}
+
+async function deleteWorkout(idx){
+  const ws = window._histWorkouts||[];
+  const w = ws[idx];
+  if(!w) return;
+  if(!confirm('Удалить тренировку?')) return;
+  try{
+    await sbDelete('exercises','workout_id=eq.'+w.id);
+    await sbDelete('workouts','id=eq.'+w.id);
+    toast('Тренировка удалена');
+    tg?.HapticFeedback?.notificationOccurred?.('success');
+    loadHistory();
+  }catch(e){console.error(e);toast('Ошибка удаления');}
+}
+
+async function editWorkoutDate(idx){
+  const ws = window._histWorkouts||[];
+  const w = ws[idx];
+  if(!w) return;
+  const cur = new Date(w.created_at);
+  const localIso = new Date(cur.getTime() - cur.getTimezoneOffset()*60000).toISOString().slice(0,16);
+  const newVal = prompt('Дата тренировки (ГГГГ-ММ-ДД ЧЧ:ММ):', localIso.replace('T',' '));
+  if(!newVal) return;
+  const parsed = new Date(newVal);
+  if(isNaN(parsed.getTime())){toast('Неверный формат даты');return;}
+  try{
+    await sbPatch('workouts','id=eq.'+w.id,{created_at:parsed.toISOString()});
+    toast('Дата обновлена');
+    tg?.HapticFeedback?.notificationOccurred?.('success');
+    loadHistory();
+  }catch(e){console.error(e);toast('Ошибка обновления даты');}
 }
 
 // ── СОХРАНЕНИЕ ТРЕНИРОВКИ ────────────────────────────────────────────
